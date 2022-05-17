@@ -15,6 +15,7 @@ Checks: "*,
         -cppcoreguidelines-pro-bounds-pointer-arithmetic,
         -cppcoreguidelines-pro-type-reinterpret-cast,
         -misc-non-private-member-variables-in-classes,
+        -bugprone-easily-swappable-parameters,
 "
 WarningsAsErrors: ''
 HeaderFilterRegex: ''
