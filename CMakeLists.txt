@@ -29,7 +29,7 @@ include(${_project_options_SOURCE_DIR}/Index.cmake)
 
 # Set the project name and language
 project(
-  pentadsolver 
+  pentadsolver
   VERSION 0.0.1
   DESCRIPTION ""
   LANGUAGES CXX)
@@ -94,16 +94,14 @@ dynamic_project_options(
   --suppress=unmatchedSuppression
   --suppress=passedByValue
   --suppress=syntaxError
-  --inconclusive
-)
+  --inconclusive)
 
 target_compile_features(project_options INTERFACE cxx_std_${CMAKE_CXX_STANDARD})
-# TODO: The INTERFACE library NAMESPACE ALIAS are missing! CK
-add_library(myproject::project_options INTERFACE IMPORTED)
-add_library(myproject::project_warnings INTERFACE IMPORTED)
+add_library(${PROJECT_NAME}::project_options INTERFACE IMPORTED)
+add_library(${PROJECT_NAME}::project_warnings INTERFACE IMPORTED)
 
 # Adding the src:
-# add_subdirectory(src)
+add_subdirectory(src)
 
 # Adding the tests:
 option(ENABLE_TESTING "Enable the tests" ${PROJECT_IS_TOP_LEVEL})
