@@ -3,6 +3,7 @@ import numpy as np
 np.random.seed(1)
 import scipy.sparse as sp
 import scipy.linalg as lg
+import scipy.sparse.linalg as slg
 
 PRECISION = 15
 PRECISION_FLOAT = 6
@@ -42,9 +43,9 @@ def calc_result_x(ds, dl, d, du, dw, x, precision=0):
         dw_diag = dw[i, 2:]  # dw is indexed 0 ... N-3 + after roll indexing
         coeff_matrix = sp.diags([ds_diag, dl_diag, d_diag, du_diag, dw_diag],
                                 [-2, -1, 0, 1, 2])
+        #  u[i] = slg.spsolve(coeff_matrix, x[i])
         print(f'{i+1}/{d.shape[0]}: Condition number:',
-              np.linalg.cond(coeff_matrix.toarray(), np.inf))
-    # transform the mesh (the result part) back
+              np.linalg.cond(coeff_matrix.toarray(), np.inf))#,np.max(np.abs(u[i] - v)))
     return u
 
 
@@ -53,35 +54,35 @@ def write_testcase(fname, ds, dl, dd, du, dw, x, u, u_float, solvedim):
         # Number of dimensions and solving dimension
         f.write(f'{len(ds.shape)} {solvedim}\n')
         # Sizes in different dimensions
-        f.write(' '.join([str(size) for size in ds.shape]))
+        f.write(' '.join([str(size) for size in reversed(ds.shape)]))
         f.write('\n')
         # ds matrix, in column major format
         f.write(' '.join(
-            [str(round(val, PRECISION)) for val in ds.flatten(order='F')]))
+            [str(round(val, PRECISION)) for val in ds.flatten()]))
         f.write('\n')
         # dl matrix, in column major format
         f.write(' '.join(
-            [str(round(val, PRECISION)) for val in dl.flatten(order='F')]))
+            [str(round(val, PRECISION)) for val in dl.flatten()]))
         f.write('\n')
         # dd matrix, in column major format
         f.write(' '.join(
-            [str(round(val, PRECISION)) for val in dd.flatten(order='F')]))
+            [str(round(val, PRECISION)) for val in dd.flatten()]))
         f.write('\n')
         # du matrix, in column major format
         f.write(' '.join(
-            [str(round(val, PRECISION)) for val in du.flatten(order='F')]))
+            [str(round(val, PRECISION)) for val in du.flatten()]))
         f.write('\n')
         # dw matrix, in column major format
         f.write(' '.join(
-            [str(round(val, PRECISION)) for val in dw.flatten(order='F')]))
+            [str(round(val, PRECISION)) for val in dw.flatten()]))
         f.write('\n')
         # x matrix, in column major format
         f.write(' '.join(
-            [str(round(val, PRECISION)) for val in x.flatten(order='F')]))
+            [str(round(val, PRECISION)) for val in x.flatten()]))
         f.write('\n')
         # u matrix, in column major format
         f.write(' '.join(
-            [str(round(val, PRECISION)) for val in u.flatten(order='F')]))
+            [str(round(val, PRECISION)) for val in u.flatten()]))
         f.write('\n')
         # u matrix in float precision, in column major format
         f.write(' '.join([

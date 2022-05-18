@@ -42,7 +42,7 @@ inline void load_array(std::ifstream &f, size_t num_elements,
 
 template <typename Float>
 MeshLoader<Float>::MeshLoader(const std::filesystem::path &file_name)
-    : _solve_dim{}, _ds{}, _dl{}, _d{}, _du{}, _dw{}, _u{} {
+    : _solve_dim{}, _ds{}, _dl{}, _d{}, _du{}, _dw{}, _x{}, _u{} {
   std::ifstream f(file_name);
   assert(f.good() && "Couldn't open file");
   size_t num_dims = 0;
@@ -61,6 +61,7 @@ MeshLoader<Float>::MeshLoader(const std::filesystem::path &file_name)
   load_array(f, num_elements, _d);
   load_array(f, num_elements, _du);
   load_array(f, num_elements, _dw);
+  load_array(f, num_elements, _x);
   if (std::is_same<Float, double>::value) {
     load_array(f, num_elements, _u);
   } else {

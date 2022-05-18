@@ -7,6 +7,15 @@
 #include <cstddef>
 
 // ----------------------------------------------------------------------------
+// Library defines
+// ----------------------------------------------------------------------------
+#ifdef __cplusplus
+#define EXTERN_C extern "C"
+#else
+#define EXTERN_C
+#endif
+
+// ----------------------------------------------------------------------------
 // Buffer size calculation
 // ----------------------------------------------------------------------------
 /**
@@ -20,10 +29,18 @@
  *
  * @return size of required buffers in bytes.
  */
-[[nodiscard]] size_t
-pentadsolver_D_gpsv_batch_buffer_size_ext(const int *t_dims, int t_ndims,
-                                          int t_solvedim);
+EXTERN_C
+[[nodiscard]] size_t pentadsolver_D_gpsv_batch_buffer_size_ext(
+    const double *ds, const double *dl, const double *d, const double *du,
+    const double *dw, const double *x, const int *t_dims, int t_ndim,
+    int t_solvedim);
 
+#ifdef __cplusplus
+[[nodiscard]] size_t pentadsolver_gpsv_batch_buffer_size_ext(
+    const double *ds, const double *dl, const double *d, const double *du,
+    const double *dw, const double *x, const int *t_dims, int t_ndim,
+    int t_solvedim);
+#endif
 // ----------------------------------------------------------------------------
 // Solver functions
 // ----------------------------------------------------------------------------
@@ -47,9 +64,17 @@ pentadsolver_D_gpsv_batch_buffer_size_ext(const int *t_dims, int t_ndims,
  * function will allocate extra memory
  *
  */
+EXTERN_C
 void pentadsolver_D_gpsv_batch(const double *ds, const double *dl,
                                const double *d, const double *du,
                                const double *dw, double *x, const int *t_dims,
                                int t_ndim, int t_solvedim, double *t_buffer);
+
+#ifdef __cplusplus
+void pentadsolver_gpsv_batch(const double *ds, const double *dl,
+                             const double *d, const double *du,
+                             const double *dw, double *x, const int *t_dims,
+                             int t_ndim, int t_solvedim, double *t_buffer);
+#endif
 
 #endif /* ifndef PENTADSOLVER_HPP_INCLUDED */
