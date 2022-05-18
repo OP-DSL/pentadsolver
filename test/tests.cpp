@@ -65,4 +65,3 @@ TEMPLATE_TEST_CASE("z_solve: batch large", "[large]", double) { // NOLINT
     test_from_file<TestType>("files/three_dim_large_solve2");
   }
 }
-
