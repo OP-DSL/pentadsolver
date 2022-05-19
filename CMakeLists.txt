@@ -100,6 +100,8 @@ target_compile_features(project_options INTERFACE cxx_std_${CMAKE_CXX_STANDARD})
 add_library(${PROJECT_NAME}::project_options INTERFACE IMPORTED)
 add_library(${PROJECT_NAME}::project_warnings INTERFACE IMPORTED)
 
+
+find_package(OpenMP REQUIRED)
 # Adding the src:
 add_subdirectory(src)
 
