@@ -15,15 +15,14 @@ void require_allclose(const std::vector<Float> &expected,
   for (size_t i = 0; i < expected.size(); ++i) {
     const double diff = std::abs(static_cast<double>(expected[i]) - actual[i]);
     CAPTURE(i, expected[i], actual[i], expected.size(), diff);
-    constexpr double tolerance =
-        1e7; // FIXME check error bound, and reference solution
-    constexpr double abs_tolerance =
-        1e-12; // FIXME check error bound, and reference solution
-    REQUIRE_THAT(
-        actual[i],
-        Catch::Matchers::WithinRel(
-            expected[i], std::numeric_limits<Float>::epsilon() * tolerance) ||
-            Catch::Matchers::WithinAbs(expected[i], abs_tolerance));
+
+    constexpr Float abs_tolerance =
+        std::is_same_v<Float, double> ? 1e-15 : 1e-6;
+    constexpr Float rel_tolerance =
+        std::is_same_v<Float, double> ? 1e-13 : 1e-5;
+    REQUIRE_THAT(actual[i],
+                 Catch::Matchers::WithinRel(expected[i], rel_tolerance) ||
+                     Catch::Matchers::WithinAbs(expected[i], abs_tolerance));
   }
 }
 

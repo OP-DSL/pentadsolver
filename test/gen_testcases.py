@@ -22,17 +22,12 @@ def calc_result_x(ds, dl, d, du, dw, x, precision=0):
         d = d.round(precision)
         du = du.round(precision)
         dw = dw.round(precision)
+        x = x.round(precision)
 
-    if len(d.shape) == 1:
-        ds = np.roll(ds, -2)  # ds is indexed 2 ... N-1, cols: 0 .. N-3
-        dl = np.roll(dl, -1)  # ds is indexed 1 ... N-1, cols: 0 .. N-2
-        du = np.roll(du, 1)  # ds is indexed 0 ... N-2, cols: 1 .. N-1
-        dw = np.roll(dw, 2)  # ds is indexed 0 ... N-3, cols: 2 .. N-1
-    else:
-        ds = np.roll(ds, -2, axis=1)  # ds is indexed 2 ... N-1, cols: 0 .. N-3
-        dl = np.roll(dl, -1, axis=1)  # ds is indexed 1 ... N-1, cols: 0 .. N-2
-        du = np.roll(du, 1, axis=1)  # ds is indexed 0 ... N-2, cols: 1 .. N-1
-        dw = np.roll(dw, 2, axis=1)  # ds is indexed 0 ... N-3, cols: 2 .. N-1
+    ds = np.roll(ds, -2, axis=1)  # ds is indexed 2 ... N-1, cols: 0 .. N-3
+    dl = np.roll(dl, -1, axis=1)  # ds is indexed 1 ... N-1, cols: 0 .. N-2
+    du = np.roll(du, 1, axis=1)  # ds is indexed 0 ... N-2, cols: 1 .. N-1
+    dw = np.roll(dw, 2, axis=1)  # ds is indexed 0 ... N-3, cols: 2 .. N-1
     for i in range(d.shape[0]):
         coeff_banded = [dw[i], du[i], d[i], dl[i], ds[i]]
         u[i] = lg.solve_banded((2, 2), coeff_banded, x[i])
@@ -45,7 +40,8 @@ def calc_result_x(ds, dl, d, du, dw, x, precision=0):
                                 [-2, -1, 0, 1, 2])
         #  u[i] = slg.spsolve(coeff_matrix, x[i])
         print(f'{i+1}/{d.shape[0]}: Condition number:',
-              np.linalg.cond(coeff_matrix.toarray(), np.inf))#,np.max(np.abs(u[i] - v)))
+              np.linalg.cond(coeff_matrix.toarray(),
+                             np.inf))  #,np.max(np.abs(u[i] - v)))
     return u
 
 
@@ -56,39 +52,30 @@ def write_testcase(fname, ds, dl, dd, du, dw, x, u, u_float, solvedim):
         # Sizes in different dimensions
         f.write(' '.join([str(size) for size in reversed(ds.shape)]))
         f.write('\n')
-        # ds matrix, in column major format
-        f.write(' '.join(
-            [str(round(val, PRECISION)) for val in ds.flatten()]))
+        # ds matrix
+        f.write(' '.join([str(round(val, PRECISION)) for val in ds.flatten()]))
         f.write('\n')
-        # dl matrix, in column major format
-        f.write(' '.join(
-            [str(round(val, PRECISION)) for val in dl.flatten()]))
+        # dl matrix
+        f.write(' '.join([str(round(val, PRECISION)) for val in dl.flatten()]))
         f.write('\n')
-        # dd matrix, in column major format
-        f.write(' '.join(
-            [str(round(val, PRECISION)) for val in dd.flatten()]))
+        # dd matrix
+        f.write(' '.join([str(round(val, PRECISION)) for val in dd.flatten()]))
         f.write('\n')
-        # du matrix, in column major format
-        f.write(' '.join(
-            [str(round(val, PRECISION)) for val in du.flatten()]))
+        # du matrix
+        f.write(' '.join([str(round(val, PRECISION)) for val in du.flatten()]))
         f.write('\n')
-        # dw matrix, in column major format
-        f.write(' '.join(
-            [str(round(val, PRECISION)) for val in dw.flatten()]))
+        # dw matrix
+        f.write(' '.join([str(round(val, PRECISION)) for val in dw.flatten()]))
         f.write('\n')
-        # x matrix, in column major format
-        f.write(' '.join(
-            [str(round(val, PRECISION)) for val in x.flatten()]))
+        # x matrix
+        f.write(' '.join([str(round(val, PRECISION)) for val in x.flatten()]))
         f.write('\n')
-        # u matrix, in column major format
-        f.write(' '.join(
-            [str(round(val, PRECISION)) for val in u.flatten()]))
+        # u matrix
+        f.write(' '.join([str(round(val, PRECISION)) for val in u.flatten()]))
         f.write('\n')
-        # u matrix in float precision, in column major format
-        f.write(' '.join([
-            str(round(val, PRECISION_FLOAT))
-            for val in u_float.flatten(order='F')
-        ]))
+        # u matrix in float precision
+        f.write(' '.join(
+            [str(round(val, PRECISION_FLOAT)) for val in u_float.flatten()]))
         f.write('\n')
 
 
@@ -96,11 +83,11 @@ def gen_testcases(fname, shape):
     N = shape[-1]
     n_sys = int(np.prod(shape[:-1]))
     print(f'{type(N)} {type(n_sys)}')
-    ds = -1 + np.random.rand(int(n_sys), int(N)) * 0.01
+    ds = -1 + np.random.rand(int(n_sys), int(N)) * 0.1
     dl = -1 + np.random.rand(n_sys, N) * 0.1
-    dd = 3 + np.random.rand(n_sys, N)
+    dd = 6 + np.random.rand(n_sys, N)
     du = -1 + np.random.rand(n_sys, N) * 0.1
-    dw = -1 + np.random.rand(n_sys, N) * 0.01
+    dw = -1 + np.random.rand(n_sys, N) * 0.1
     ds[..., :2] = 0  # dl is indexed 2 ... N-1
     dl[..., :1] = 0  # ds is indexed 1 ... N-1
     du[..., -1:] = 0  # du is indexed 0 ... N-2
@@ -108,11 +95,11 @@ def gen_testcases(fname, shape):
 
     x = np.random.rand(n_sys, N)
     print('double')
-    u = calc_result_x(ds, dl, dd, du, dw, x)
+    u = calc_result_x(ds, dl, dd, du, dw, x, PRECISION)
     print('float')
     u_float = calc_result_x(ds, dl, dd, du, dw, x, precision=PRECISION_FLOAT)
 
-    # get back te requested shape
+    # get back the requested shape
     ds = ds.reshape(*shape)
     dl = dl.reshape(*shape)
     dd = dd.reshape(*shape)
