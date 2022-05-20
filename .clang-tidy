@@ -17,6 +17,7 @@ Checks: "*,
         -cppcoreguidelines-pro-type-reinterpret-cast,
         -misc-non-private-member-variables-in-classes,
         -bugprone-easily-swappable-parameters,
+        -openmp-use-default-none,
 "
 WarningsAsErrors: ''
 HeaderFilterRegex: ''
