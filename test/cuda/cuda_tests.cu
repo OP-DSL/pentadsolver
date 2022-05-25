@@ -1,27 +1,28 @@
-#include <catch2/catch.hpp> // for Section, INTERNAL_CATCH_NOINTERNAL_...
+#include <catch2/catch.hpp> // for INTERNAL_CATCH_NOINTERNAL_CATCH_DEF
 #include <filesystem>       // for path
 #include <vector>           // for allocator, vector
 #include "catch_utils.hpp"  // for require_allclose
+#include "cuda_utils.hpp"   // for DeviceMeshLoader
 #include "pentadsolver.hpp" // for pentadsolver_gpsv_batch
-#include "utils.hpp"        // for MeshLoader
 
 template <typename Float>
 void test_from_file(const std::filesystem::path &file_name) {
-  MeshLoader<Float> mesh(file_name);
-  std::vector<Float> x(mesh.x());
+  DeviceMeshLoader<Float> mesh(file_name);
 
-  pentadsolver_gpsv_batch(mesh.ds().data(),   // ds
-                          mesh.dl().data(),   // dl
-                          mesh.d().data(),    // d
-                          mesh.du().data(),   // du
-                          mesh.dw().data(),   // dw
-                          x.data(),           // x
+  pentadsolver_gpsv_batch(mesh.ds_d(),        // ds
+                          mesh.dl_d(),        // dl
+                          mesh.d_d(),         // d
+                          mesh.du_d(),        // du
+                          mesh.dw_d(),        // dw
+                          mesh.x_d(),         // x
                           mesh.dims().data(), // t_dims
                           mesh.dims().size(), // t_dims
                           mesh.solve_dim(),   // t_solvedim
                           nullptr);           // t_buffer
 
-  require_allclose(mesh.u(), x);
+  cudaMemcpy(mesh.x().data(), mesh.x_d(), mesh.x().size() * sizeof(Float),
+             cudaMemcpyDeviceToHost);
+  require_allclose(mesh.u(), mesh.x());
 }
 
 TEMPLATE_TEST_CASE("x_solve: batch small", "[small]", double, float) { // NOLINT
