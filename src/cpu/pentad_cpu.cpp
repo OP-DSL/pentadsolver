@@ -3,13 +3,12 @@
 #include <cstddef>          // for size_t
 #include <functional>       // for multiplies
 #include <numeric>          // for accumulate
-#include <span>             // for span
 #include "pentadsolver.hpp" // for pentadsolver_D_gpsv_batch, pentadsolver_...
 
 template <typename Float>
-void pentadsolver_x_scalar(const Float *ds, const Float *dl, const Float *d,
-                           const Float *du, const Float *dw, Float *x,
-                           size_t t_sys_size) {
+void pentadsolver_x(const Float *ds, const Float *dl, const Float *d,
+                    const Float *du, const Float *dw, Float *x,
+                    size_t t_sys_size) {
   constexpr size_t N_MAX = 1024; // FIXME move to parameter, define
   std::array<Float, N_MAX> du2{};
   std::array<Float, N_MAX> dw2{};
@@ -56,26 +55,23 @@ void pentadsolver_x_scalar(const Float *ds, const Float *dl, const Float *d,
 }
 
 template <typename Float>
-void pentadsolver_batch_x_scalar(const Float *ds, const Float *dl,
-                                 const Float *d, const Float *du,
-                                 const Float *dw, Float *x, size_t t_n_sys,
-                                 size_t t_sys_size) {
+void pentadsolver_batch_x(const Float *ds, const Float *dl, const Float *d,
+                          const Float *du, const Float *dw, Float *x,
+                          size_t t_n_sys, size_t t_sys_size) {
   assert(t_sys_size > 4); // NOLINT
 
 #pragma omp parallel for
   for (int i = 0; i < t_n_sys; ++i) {
     size_t sys_start = i * t_sys_size;
-    pentadsolver_x_scalar(ds + sys_start, dl + sys_start, d + sys_start,
-                          du + sys_start, dw + sys_start, x + sys_start,
-                          t_sys_size);
+    pentadsolver_x(ds + sys_start, dl + sys_start, d + sys_start,
+                   du + sys_start, dw + sys_start, x + sys_start, t_sys_size);
   }
 }
 
 template <typename Float>
-void pentadsolver_strided_scalar(const Float *ds, const Float *dl,
-                                 const Float *d, const Float *du,
-                                 const Float *dw, Float *x, size_t t_sys_size,
-                                 size_t t_stride) {
+void pentadsolver_strided(const Float *ds, const Float *dl, const Float *d,
+                          const Float *du, const Float *dw, Float *x,
+                          size_t t_sys_size, size_t t_stride) {
   constexpr size_t N_MAX = 1024; // FIXME move to parameter, define
   std::array<Float, N_MAX> du2{};
   std::array<Float, N_MAX> dw2{};
@@ -124,36 +120,35 @@ void pentadsolver_strided_scalar(const Float *ds, const Float *dl,
 }
 
 template <typename Float>
-void pentadsolver_batch_outermost_scalar(const Float *ds, const Float *dl,
-                                         const Float *d, const Float *du,
-                                         const Float *dw, Float *x,
-                                         size_t t_n_sys, size_t t_sys_size) {
+void pentadsolver_batch_outermost(const Float *ds, const Float *dl,
+                                  const Float *d, const Float *du,
+                                  const Float *dw, Float *x, size_t t_n_sys,
+                                  size_t t_sys_size) {
   assert(t_sys_size > 4); // NOLINT
 
 #pragma omp parallel for
   for (int i = 0; i < t_n_sys; ++i) {
     size_t sys_start = i;
-    pentadsolver_strided_scalar(ds + sys_start, dl + sys_start, d + sys_start,
-                                du + sys_start, dw + sys_start, x + sys_start,
-                                t_sys_size, t_n_sys);
+    pentadsolver_strided(ds + sys_start, dl + sys_start, d + sys_start,
+                         du + sys_start, dw + sys_start, x + sys_start,
+                         t_sys_size, t_n_sys);
   }
 }
 
 template <typename Float>
-void pentadsolver_batch_middle_scalar(const Float *ds, const Float *dl,
-                                      const Float *d, const Float *du,
-                                      const Float *dw, Float *x,
-                                      size_t t_n_sys_in, size_t t_sys_size,
-                                      size_t t_n_sys_out) {
+void pentadsolver_batch_middle(const Float *ds, const Float *dl, const Float *d,
+                               const Float *du, const Float *dw, Float *x,
+                               size_t t_n_sys_in, size_t t_sys_size,
+                               size_t t_n_sys_out) {
   assert(t_sys_size > 4); // NOLINT
 
 #pragma omp parallel for collapse(2)
   for (int i = 0; i < t_n_sys_out; ++i) {
     for (int j = 0; j < t_n_sys_in; ++j) {
       size_t sys_start = i * t_n_sys_in * t_sys_size + j;
-      pentadsolver_strided_scalar(ds + sys_start, dl + sys_start, d + sys_start,
-                                  du + sys_start, dw + sys_start, x + sys_start,
-                                  t_sys_size, t_n_sys_in);
+      pentadsolver_strided(ds + sys_start, dl + sys_start, d + sys_start,
+                           du + sys_start, dw + sys_start, x + sys_start,
+                           t_sys_size, t_n_sys_in);
     }
   }
 }
@@ -161,54 +156,55 @@ void pentadsolver_batch_middle_scalar(const Float *ds, const Float *dl,
 template <typename Float>
 void pentadsolver_gpsv_batch_x(const Float *ds, const Float *dl, const Float *d,
                                const Float *du, const Float *dw, Float *x,
-                               const std::span<const int> t_dims,
+                               const int *t_dims, size_t t_ndims,
                                void * /*t_buffer*/) {
   size_t n_sys =
-      std::accumulate(t_dims.begin() + 1, t_dims.end(), 1, std::multiplies<>());
+      std::accumulate(t_dims + 1, t_dims + t_ndims, 1, std::multiplies<>());
   size_t sys_size = t_dims[0];
-  pentadsolver_batch_x_scalar(ds, dl, d, du, dw, x, n_sys, sys_size);
+  pentadsolver_batch_x(ds, dl, d, du, dw, x, n_sys, sys_size);
 }
 
 template <typename Float>
 void pentadsolver_gpsv_batch_outermost(const Float *ds, const Float *dl,
                                        const Float *d, const Float *du,
                                        const Float *dw, Float *x,
-                                       const std::span<const int> t_dims,
+                                       const int *t_dims, size_t t_ndims,
                                        void * /*t_buffer*/) {
   size_t n_sys =
-      std::accumulate(t_dims.begin(), t_dims.end() - 1, 1, std::multiplies<>());
-  size_t sys_size = t_dims[t_dims.size() - 1];
-  pentadsolver_batch_outermost_scalar(ds, dl, d, du, dw, x, n_sys, sys_size);
+      std::accumulate(t_dims, t_dims + t_ndims - 1, 1, std::multiplies<>());
+  size_t sys_size = t_dims[t_ndims - 1];
+  pentadsolver_batch_outermost(ds, dl, d, du, dw, x, n_sys, sys_size);
 }
 
 template <typename Float>
 void pentadsolver_gpsv_batch_middle(const Float *ds, const Float *dl,
                                     const Float *d, const Float *du,
                                     const Float *dw, Float *x,
-                                    const std::span<const int> t_dims,
+                                    const int *t_dims, size_t t_ndims,
                                     int t_solvedim, void * /*t_buffer*/) {
-  size_t n_sys_in = std::accumulate(t_dims.begin(), t_dims.begin() + t_solvedim,
-                                    1, std::multiplies<>());
-  size_t n_sys_out = std::accumulate(t_dims.begin() + t_solvedim + 1,
-                                     t_dims.end(), 1, std::multiplies<>());
+  size_t n_sys_in =
+      std::accumulate(t_dims, t_dims + t_solvedim, 1, std::multiplies<>());
+  size_t n_sys_out = std::accumulate(t_dims + t_solvedim + 1, t_dims + t_ndims,
+                                     1, std::multiplies<>());
   size_t sys_size  = t_dims[t_solvedim];
-  pentadsolver_batch_middle_scalar(ds, dl, d, du, dw, x, n_sys_in, sys_size,
-                                   n_sys_out);
+  pentadsolver_batch_middle(ds, dl, d, du, dw, x, n_sys_in, sys_size,
+                            n_sys_out);
 }
 
 template <typename Float>
 void pentadsolver_gpsv_batch(const Float *ds, const Float *dl, const Float *d,
                              const Float *du, const Float *dw, Float *x,
-                             const std::span<const int> t_dims, int t_solvedim,
+                             const int *t_dims, size_t t_ndims, int t_solvedim,
                              void *t_buffer) {
 
   if (t_solvedim == 0) {
-    pentadsolver_gpsv_batch_x(ds, dl, d, du, dw, x, t_dims, t_buffer);
-  } else if (t_solvedim == t_dims.size()) {
-    pentadsolver_gpsv_batch_outermost(ds, dl, d, du, dw, x, t_dims, t_buffer);
+    pentadsolver_gpsv_batch_x(ds, dl, d, du, dw, x, t_dims, t_ndims, t_buffer);
+  } else if (t_solvedim == t_ndims - 1) {
+    pentadsolver_gpsv_batch_outermost(ds, dl, d, du, dw, x, t_dims, t_ndims,
+                                      t_buffer);
   } else {
-    pentadsolver_gpsv_batch_middle(ds, dl, d, du, dw, x, t_dims, t_solvedim,
-                                   t_buffer);
+    pentadsolver_gpsv_batch_middle(ds, dl, d, du, dw, x, t_dims, t_ndims,
+                                   t_solvedim, t_buffer);
   }
 }
 
@@ -218,20 +214,10 @@ void pentadsolver_gpsv_batch(const Float *ds, const Float *dl, const Float *d,
 
 template <typename Float>
 [[nodiscard]] size_t pentadsolver_gpsv_batch_buffer_size_ext(
-    const Float *ds, const Float *dl, const Float *d, const Float *du,
-    const Float *dw, const Float *x, const std::span<const int> t_dims,
-    int t_solvedim) {
-  (void)ds;
-  (void)dl;
-  (void)d;
-  (void)du;
-  (void)dw;
-  (void)x;
-  (void)t_solvedim;
-  constexpr size_t number_of_temp_arrays = 4;
-  size_t size_of_array =
-      std::accumulate(t_dims.begin(), t_dims.end(), 1U, std::multiplies<>());
-  return number_of_temp_arrays * size_of_array * sizeof(Float);
+    const Float * /*ds*/, const Float * /*dl*/, const Float * /*d*/,
+    const Float * /*du*/, const Float * /*dw*/, const Float * /*x*/,
+    const int * /*t_dims*/, size_t /*t_ndims*/, int /*t_solvedim*/) {
+  return 0;
 }
 
 // ----------------------------------------------------------------------------
@@ -243,7 +229,7 @@ size_t pentadsolver_gpsv_batch_buffer_size_ext(
     const double *dw, const double *x, const int *t_dims, int t_ndim,
     int t_solvedim) {
   return pentadsolver_gpsv_batch_buffer_size_ext(
-      ds, dl, d, du, dw, x, {t_dims, static_cast<size_t>(t_ndim)}, t_solvedim);
+      ds, dl, d, du, dw, x, t_dims, static_cast<size_t>(t_ndim), t_solvedim);
 }
 
 size_t pentadsolver_D_gpsv_batch_buffer_size_ext(
@@ -260,7 +246,7 @@ size_t pentadsolver_gpsv_batch_buffer_size_ext(const float *ds, const float *dl,
                                                const int *t_dims, int t_ndim,
                                                int t_solvedim) {
   return pentadsolver_gpsv_batch_buffer_size_ext(
-      ds, dl, d, du, dw, x, {t_dims, static_cast<size_t>(t_ndim)}, t_solvedim);
+      ds, dl, d, du, dw, x, t_dims, static_cast<size_t>(t_ndim), t_solvedim);
 }
 
 size_t pentadsolver_S_gpsv_batch_buffer_size_ext(
@@ -274,9 +260,8 @@ void pentadsolver_gpsv_batch(const double *ds, const double *dl,
                              const double *d, const double *du,
                              const double *dw, double *x, const int *t_dims,
                              int t_ndim, int t_solvedim, void *t_buffer) {
-  pentadsolver_gpsv_batch(ds, dl, d, du, dw, x,
-                          {t_dims, static_cast<size_t>(t_ndim)}, t_solvedim,
-                          t_buffer);
+  pentadsolver_gpsv_batch(ds, dl, d, du, dw, x, t_dims,
+                          static_cast<size_t>(t_ndim), t_solvedim, t_buffer);
 }
 
 void pentadsolver_D_gpsv_batch(const double *ds, const double *dl,
@@ -291,9 +276,8 @@ void pentadsolver_gpsv_batch(const float *ds, const float *dl, const float *d,
                              const float *du, const float *dw, float *x,
                              const int *t_dims, int t_ndim, int t_solvedim,
                              void *t_buffer) {
-  pentadsolver_gpsv_batch(ds, dl, d, du, dw, x,
-                          {t_dims, static_cast<size_t>(t_ndim)}, t_solvedim,
-                          t_buffer);
+  pentadsolver_gpsv_batch(ds, dl, d, du, dw, x, t_dims,
+                          static_cast<size_t>(t_ndim), t_solvedim, t_buffer);
 }
 
 void pentadsolver_S_gpsv_batch(const float *ds, const float *dl, const float *d,
