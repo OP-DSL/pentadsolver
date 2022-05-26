@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.18...3.23)
 
-project(CmakeConfigPackageTests LANGUAGES CXX)
+project(PentadSolverPackageTests LANGUAGES CXX)
 
 # ---- Test as standalone project the exported config package ----
 # This variable is set by project() in CMake 3.21+
@@ -30,21 +30,10 @@ add_library(catch_main OBJECT catch_main.cpp)
 target_link_libraries(catch_main PUBLIC Catch2::Catch2)
 target_link_libraries(catch_main PRIVATE pentadsolver::project_options)
 
-add_executable(tests tests.cpp)
-target_link_libraries(tests PRIVATE pentadsolver::project_warnings pentadsolver::project_options pentadsolver::cpu catch_main)
+if(BUILD_FOR_CPU)
+  add_subdirectory(cpu)
+endif(BUILD_FOR_CPU)
 
-# automatically discover tests that are defined in catch based test files you can modify the unittests. Set TEST_PREFIX
-# to whatever you want, or use different for different binaries
-catch_discover_tests(
-  tests
-  TEST_PREFIX
-  "unittests."
-  REPORTER
-  xml
-  OUTPUT_DIR
-  .
-  OUTPUT_PREFIX
-  "unittests."
-  OUTPUT_SUFFIX
-  .xml)
-
+if(BUILD_FOR_CUDA)
+  add_subdirectory(cuda)
+endif(BUILD_FOR_CUDA)

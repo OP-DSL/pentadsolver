@@ -9,6 +9,7 @@
 #include <fstream>
 
 template <typename Float> class MeshLoader {
+protected:
   size_t _solve_dim;
   std::vector<int> _dims;
   std::vector<Float> _ds, _dl, _d, _du, _dw, _x, _u;
@@ -25,6 +26,7 @@ public:
   const std::vector<Float> &dw() const { return _dw; }
   const std::vector<Float> &x() const { return _x; }
   const std::vector<Float> &u() const { return _u; }
+  std::vector<Float> &x() { return _x; }
 };
 /**********************************************************************
  *                          Implementations                           *

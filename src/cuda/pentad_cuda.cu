@@ -1,18 +1,20 @@
-#include <array>            // for array
-#include <cassert>          // for assert
-#include <cstddef>          // for size_t
-#include <functional>       // for multiplies
-#include <numeric>          // for accumulate
-#include "pentadsolver.hpp" // for pentadsolver_D_gpsv_batch, pentadsolver_...
+#include <cooperative_groups.h> // for this_grid, grid_group
+#include <cassert>              // for assert
+#include <cstddef>              // for size_t
+#include <functional>           // for multiplies
+#include <numeric>              // for accumulate
+#include "pentadsolver.hpp"     // for pentadsolver_gpsv_batch
 
 template <typename Float>
-void pentadsolver_x(const Float *ds, const Float *dl, const Float *d,
-                    const Float *du, const Float *dw, Float *x,
-                    size_t t_sys_size) {
+__device__ void
+pentadsolver_x(const Float *__restrict__ ds, const Float *__restrict__ dl,
+               const Float *__restrict__ d, const Float *__restrict__ du,
+               const Float *__restrict__ dw, Float *__restrict__ x,
+               size_t t_sys_size) {
   constexpr size_t N_MAX = 1024; // FIXME move to parameter, define
-  std::array<Float, N_MAX> du2{};
-  std::array<Float, N_MAX> dw2{};
-  std::array<Float, N_MAX> x2{};
+  Float du2[N_MAX]       = {};   // NOLINT
+  Float dw2[N_MAX]       = {};   // NOLINT
+  Float x2[N_MAX]        = {};   // NOLINT
   // row 1 - normalise -- ds, dl 0
   du2[0] = du[0] / d[0];
   dw2[0] = dw[0] / d[0];
@@ -55,27 +57,45 @@ void pentadsolver_x(const Float *ds, const Float *dl, const Float *d,
 }
 
 template <typename Float>
+__global__ void pentadsolver_batch_x_kernel(const Float *__restrict__ ds,
+                                            const Float *__restrict__ dl,
+                                            const Float *__restrict__ d,
+                                            const Float *__restrict__ du,
+                                            const Float *__restrict__ dw,
+                                            Float *__restrict__ x,
+                                            size_t t_n_sys, size_t t_sys_size) {
+  size_t tid = cooperative_groups::this_grid().thread_rank();
+  if (tid < t_n_sys) {
+    size_t start_idx = tid * t_sys_size;
+    pentadsolver_x(ds + start_idx, dl + start_idx, d + start_idx,
+                   du + start_idx, dw + start_idx, x + start_idx, t_sys_size);
+  }
+}
+
+template <typename Float>
 void pentadsolver_batch_x(const Float *ds, const Float *dl, const Float *d,
                           const Float *du, const Float *dw, Float *x,
                           size_t t_n_sys, size_t t_sys_size) {
   assert(t_sys_size > 4); // NOLINT
 
-#pragma omp parallel for
-  for (int i = 0; i < t_n_sys; ++i) {
-    size_t sys_start = i * t_sys_size;
-    pentadsolver_x(ds + sys_start, dl + sys_start, d + sys_start,
-                   du + sys_start, dw + sys_start, x + sys_start, t_sys_size);
-  }
+  // Set up the execution configuration
+  constexpr int block_dim_x = 128;
+  int nblocks               = 1 + (static_cast<int>(t_n_sys) - 1) / block_dim_x;
+
+  pentadsolver_batch_x_kernel<<<block_dim_x, nblocks>>>(ds, dl, d, du, dw, x,
+                                                        t_n_sys, t_sys_size);
 }
 
 template <typename Float>
-void pentadsolver_strided(const Float *ds, const Float *dl, const Float *d,
-                          const Float *du, const Float *dw, Float *x,
-                          size_t t_sys_size, size_t t_stride) {
+__device__ void
+pentadsolver_strided(const Float *__restrict__ ds, const Float *__restrict__ dl,
+                     const Float *__restrict__ d, const Float *__restrict__ du,
+                     const Float *__restrict__ dw, Float *__restrict__ x,
+                     size_t t_sys_size, size_t t_stride) {
   constexpr size_t N_MAX = 1024; // FIXME move to parameter, define
-  std::array<Float, N_MAX> du2{};
-  std::array<Float, N_MAX> dw2{};
-  std::array<Float, N_MAX> x2{};
+  Float du2[N_MAX]       = {};   // NOLINT
+  Float dw2[N_MAX]       = {};   // NOLINT
+  Float x2[N_MAX]        = {};   // NOLINT
   // row 1 - normalise -- ds, dl 0
   du2[0] = du[0 * t_stride] / d[0 * t_stride];
   dw2[0] = dw[0 * t_stride] / d[0 * t_stride];
@@ -120,15 +140,15 @@ void pentadsolver_strided(const Float *ds, const Float *dl, const Float *d,
 }
 
 template <typename Float>
-void pentadsolver_batch_outermost(const Float *ds, const Float *dl,
-                                  const Float *d, const Float *du,
-                                  const Float *dw, Float *x, size_t t_n_sys,
-                                  size_t t_sys_size) {
+__global__ void pentadsolver_batch_outermost_kernel(
+    const Float *__restrict__ ds, const Float *__restrict__ dl,
+    const Float *__restrict__ d, const Float *__restrict__ du,
+    const Float *__restrict__ dw, Float *__restrict__ x, size_t t_n_sys,
+    size_t t_sys_size) {
   assert(t_sys_size > 4); // NOLINT
-
-#pragma omp parallel for
-  for (int i = 0; i < t_n_sys; ++i) {
-    size_t sys_start = i;
+  size_t tid = cooperative_groups::this_grid().thread_rank();
+  if (tid < t_n_sys) {
+    size_t sys_start = tid;
     pentadsolver_strided(ds + sys_start, dl + sys_start, d + sys_start,
                          du + sys_start, dw + sys_start, x + sys_start,
                          t_sys_size, t_n_sys);
@@ -136,32 +156,56 @@ void pentadsolver_batch_outermost(const Float *ds, const Float *dl,
 }
 
 template <typename Float>
-void pentadsolver_batch_middle(const Float *ds, const Float *dl, const Float *d,
-                               const Float *du, const Float *dw, Float *x,
-                               size_t t_n_sys_in, size_t t_sys_size,
-                               size_t t_n_sys_out) {
+__global__ void pentadsolver_batch_middle_kernel(
+    const Float *__restrict__ ds, const Float *__restrict__ dl,
+    const Float *__restrict__ d, const Float *__restrict__ du,
+    const Float *__restrict__ dw, Float *__restrict__ x, size_t t_n_sys_in,
+    size_t t_sys_size, size_t t_n_sys_out) {
   assert(t_sys_size > 4); // NOLINT
-
-#pragma omp parallel for collapse(2)
-  for (int i = 0; i < t_n_sys_out; ++i) {
-    for (int j = 0; j < t_n_sys_in; ++j) {
-      size_t sys_start = i * t_n_sys_in * t_sys_size + j;
-      pentadsolver_strided(ds + sys_start, dl + sys_start, d + sys_start,
-                           du + sys_start, dw + sys_start, x + sys_start,
-                           t_sys_size, t_n_sys_in);
-    }
+  size_t tid = cooperative_groups::this_grid().thread_rank();
+  if (tid < t_n_sys_out * t_n_sys_in) {
+    size_t i         = tid / t_n_sys_in;
+    size_t j         = tid % t_n_sys_in;
+    size_t sys_start = i * t_n_sys_in * t_sys_size + j;
+    pentadsolver_strided(ds + sys_start, dl + sys_start, d + sys_start,
+                         du + sys_start, dw + sys_start, x + sys_start,
+                         t_sys_size, t_n_sys_in);
   }
 }
 
 template <typename Float>
-void pentadsolver_gpsv_batch_x(const Float *ds, const Float *dl, const Float *d,
-                               const Float *du, const Float *dw, Float *x,
-                               const int *t_dims, size_t t_ndims,
-                               void * /*t_buffer*/) {
-  size_t n_sys =
-      std::accumulate(t_dims + 1, t_dims + t_ndims, 1, std::multiplies<>());
-  size_t sys_size = t_dims[0];
-  pentadsolver_batch_x(ds, dl, d, du, dw, x, n_sys, sys_size);
+void pentadsolver_batch_outermost(const Float *__restrict__ ds,
+                                  const Float *__restrict__ dl,
+                                  const Float *__restrict__ d,
+                                  const Float *__restrict__ du,
+                                  const Float *__restrict__ dw,
+                                  Float *__restrict__ x, size_t t_n_sys,
+                                  size_t t_sys_size) {
+  assert(t_sys_size > 4); // NOLINT
+
+  // Set up the execution configuration
+  constexpr int block_dim_x = 128;
+  int nblocks               = 1 + (static_cast<int>(t_n_sys) - 1) / block_dim_x;
+  pentadsolver_batch_outermost_kernel<<<block_dim_x, nblocks>>>(
+      ds, dl, d, du, dw, x, t_n_sys, t_sys_size);
+}
+
+template <typename Float>
+void pentadsolver_batch_middle(const Float *__restrict__ ds,
+                               const Float *__restrict__ dl,
+                               const Float *__restrict__ d,
+                               const Float *__restrict__ du,
+                               const Float *__restrict__ dw,
+                               Float *__restrict__ x, size_t t_n_sys_in,
+                               size_t t_sys_size, size_t t_n_sys_out) {
+  assert(t_sys_size > 4); // NOLINT
+
+  // Set up the execution configuration
+  constexpr int block_dim_x = 128;
+  int nblocks =
+      1 + (static_cast<int>(t_n_sys_in * t_n_sys_out) - 1) / block_dim_x;
+  pentadsolver_batch_middle_kernel<<<block_dim_x, nblocks>>>(
+      ds, dl, d, du, dw, x, t_n_sys_in, t_sys_size, t_n_sys_out);
 }
 
 template <typename Float>
@@ -189,6 +233,17 @@ void pentadsolver_gpsv_batch_middle(const Float *ds, const Float *dl,
   size_t sys_size  = t_dims[t_solvedim];
   pentadsolver_batch_middle(ds, dl, d, du, dw, x, n_sys_in, sys_size,
                             n_sys_out);
+}
+
+template <typename Float>
+void pentadsolver_gpsv_batch_x(const Float *ds, const Float *dl, const Float *d,
+                               const Float *du, const Float *dw, Float *x,
+                               const int *t_dims, size_t t_ndims,
+                               void * /*t_buffer*/) {
+  size_t n_sys =
+      std::accumulate(t_dims + 1, t_dims + t_ndims, 1, std::multiplies<>());
+  size_t sys_size = t_dims[0];
+  pentadsolver_batch_x(ds, dl, d, du, dw, x, n_sys, sys_size);
 }
 
 template <typename Float>
