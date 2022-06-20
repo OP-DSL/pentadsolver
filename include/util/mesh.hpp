@@ -1,21 +1,26 @@
-#ifndef PENTADSOLVER_TESTS_UTILS_HPP_INCLUDED
-#define PENTADSOLVER_TESTS_UTILS_HPP_INCLUDED
+#ifndef PENTADSOLVER_MESH_HPP_INCLUDED
+#define PENTADSOLVER_MESH_HPP_INCLUDED
 
 #include <cmath>
 #include <cassert>
+#include <utility>
 #include <vector>
 #include <string>
 #include <filesystem>
 #include <fstream>
+#include <numeric>
+#include <random>
+#include <omp.h>
 
-template <typename Float> class MeshLoader {
+template <typename Float> class Mesh {
 protected:
   size_t _solve_dim;
   std::vector<int> _dims;
   std::vector<Float> _ds, _dl, _d, _du, _dw, _x, _u;
 
 public:
-  explicit MeshLoader(const std::filesystem::path &file_name);
+  explicit Mesh(const std::filesystem::path &file_name);
+  Mesh(size_t solve_dim, std::vector<int> _dims);
 
   [[nodiscard]] size_t solve_dim() const { return _solve_dim; }
   [[nodiscard]] const std::vector<int> &dims() const { return _dims; }
@@ -43,7 +48,7 @@ inline void load_array(std::ifstream &f, size_t num_elements,
 }
 
 template <typename Float>
-MeshLoader<Float>::MeshLoader(const std::filesystem::path &file_name)
+Mesh<Float>::Mesh(const std::filesystem::path &file_name)
     : _solve_dim{}, _ds{}, _dl{}, _d{}, _du{}, _dw{}, _x{}, _u{} {
   std::ifstream f(file_name);
   assert(f.good() && "Couldn't open file");
@@ -74,4 +79,48 @@ MeshLoader<Float>::MeshLoader(const std::filesystem::path &file_name)
   }
 }
 
-#endif /* ifndef PENTADSOLVER_TESTS_UTILS_HPP_INCLUDED */
+template <typename Float>
+Mesh<Float>::Mesh(size_t solve_dim, std::vector<int> dims)
+    : _solve_dim{solve_dim},
+      _dims(std::move(dims)), _ds{}, _dl{}, _d{}, _du{}, _dw{}, _x{}, _u{} {
+  assert(_solve_dim < _dims.size() && "solve dim greater than number of dims");
+  size_t num_elements =
+      std::accumulate(_dims.begin(), _dims.end(), 1, std::multiplies());
+  _ds.resize(num_elements);
+  _dl.resize(num_elements);
+  _d.resize(num_elements);
+  _du.resize(num_elements);
+  _dw.resize(num_elements);
+  _x.resize(num_elements);
+  // _u.resize(num_elements); u stays
+
+  size_t n_sys_in = std::accumulate(_dims.data(), _dims.data() + _solve_dim, 1,
+                                    std::multiplies<>());
+  size_t n_sys_out =
+      std::accumulate(_dims.data() + _solve_dim + 1,
+                      _dims.data() + _dims.size(), 1, std::multiplies<>());
+  size_t sys_size = _dims[_solve_dim];
+
+#pragma omp parallel
+  {
+    std::mt19937_64 gen(omp_get_thread_num());
+    std::uniform_real_distribution<Float> dist;
+
+#pragma omp for collapse(2)
+    for (int i = 0; i < n_sys_out; ++i) {
+      for (int j = 0; j < n_sys_in; ++j) {
+        size_t sys_start = i * n_sys_in * sys_size + j;
+        for (int n = 0; n < sys_size; ++n) {
+          size_t idx = sys_start + n * n_sys_in;
+          _ds[idx]   = n > 1 ? -1 * dist(gen) : 0;
+          _dl[idx]   = n > 0 ? -1 * dist(gen) : 0;
+          _d[idx]    = 6 * dist(gen);
+          _du[idx]   = n < sys_size - 1 ? -1 * dist(gen) : 0;
+          _dw[idx]   = n < sys_size - 2 ? -1 * dist(gen) : 0;
+          _x[idx]    = 1 * dist(gen);
+        }
+      }
+    }
+  }
+}
+#endif /* ifndef PENTADSOLVER_MESH_HPP_INCLUDED */

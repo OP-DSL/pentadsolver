@@ -1,13 +1,13 @@
-#include <catch2/catch.hpp> // for INTERNAL_CATCH_NOINTERNAL_CATCH_DEF
-#include <filesystem>       // for path
-#include <vector>           // for allocator, vector
-#include "catch_utils.hpp"  // for require_allclose
-#include "cuda_utils.hpp"   // for DeviceMeshLoader
-#include "pentadsolver.hpp" // for pentadsolver_gpsv_batch
+#include <catch2/catch.hpp>     // for INTERNAL_CATCH_NOINTERNAL_CATCH_DEF
+#include <filesystem>           // for path
+#include <vector>               // for allocator, vector
+#include "catch_utils.hpp"      // for require_allclose
+#include "util/device_mesh.hpp" // for DeviceMesh
+#include "pentadsolver.hpp"     // for pentadsolver_gpsv_batch
 
 template <typename Float>
 void test_from_file(const std::filesystem::path &file_name) {
-  DeviceMeshLoader<Float> mesh(file_name);
+  DeviceMesh<Float> mesh(file_name);
 
   pentadsolver_gpsv_batch(mesh.ds_d(),        // ds
                           mesh.dl_d(),        // dl
