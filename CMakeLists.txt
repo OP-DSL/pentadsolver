@@ -105,6 +105,8 @@ find_package(OpenMP REQUIRED)
 # Adding the src:
 add_subdirectory(src)
 
+add_subdirectory(benchmarks)
+
 # Adding the tests:
 option(ENABLE_TESTING "Enable the tests" ${PROJECT_IS_TOP_LEVEL})
 if(ENABLE_TESTING)
