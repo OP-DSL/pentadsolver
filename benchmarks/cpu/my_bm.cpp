@@ -3,7 +3,8 @@
 #include "pentadsolver.hpp"
 
 template <typename Float> static void BM_PentadSolver(benchmark::State &state) {
-  Mesh<Float> mesh(state.range(1), std::vector<int>(3, state.range(0)));
+  Mesh<Float> mesh(state.range(1),
+                   std::vector<int>(3, static_cast<int>(state.range(0))));
   std::vector<Float> x(mesh.x());
   for (auto _ : state) {
     pentadsolver_gpsv_batch(mesh.ds().data(),   // ds
@@ -22,7 +23,7 @@ template <typename Float> static void BM_PentadSolver(benchmark::State &state) {
   }
 }
 // Register the function as a benchmark
-constexpr int range_max = 2 << 7;
+constexpr int range_max = 2u << 7;
 BENCHMARK_TEMPLATE(BM_PentadSolver, float)
     ->RangeMultiplier(2)
     ->Ranges({{32, range_max}, {1, 1}, {0, 0}});
