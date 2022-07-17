@@ -3,9 +3,9 @@
 #include "pentadsolver.hpp"
 
 template <typename Float> static void BM_PentadSolver(benchmark::State &state) {
-  DeviceMesh<Float> mesh(state.range(1),
-                         std::vector<int>(3, static_cast<int>(state.range(0))));
-  Flaog *x_d = nullptr;
+  DeviceMesh<Float> mesh(state.range(2),
+                         std::vector<int>(state.range(1), static_cast<int>(state.range(0))));
+  Float *x_d = nullptr;
   cudaMalloc((void **)&x_d, sizeof(Float) * mesh.x().size());
   cudaMemcpy(x_d, mesh.x_d(), sizeof(Float) * mesh.x().size(),
              cudaMemcpyDeviceToDevice);

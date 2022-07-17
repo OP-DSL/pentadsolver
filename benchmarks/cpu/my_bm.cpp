@@ -3,8 +3,8 @@
 #include "pentadsolver.hpp"
 
 template <typename Float> static void BM_PentadSolver(benchmark::State &state) {
-  Mesh<Float> mesh(state.range(1),
-                   std::vector<int>(3, static_cast<int>(state.range(0))));
+  Mesh<Float> mesh(state.range(2),
+                   std::vector<int>(state.range(1), static_cast<int>(state.range(0))));
   std::vector<Float> x(mesh.x());
   for (auto _ : state) {
     pentadsolver_gpsv_batch(mesh.ds().data(),   // ds
