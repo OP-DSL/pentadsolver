@@ -1,15 +1,19 @@
-#include <catch2/catch.hpp> // for Section, INTERNAL_CATCH_NOINTERNAL_...
-#include <filesystem>       // for path
-#include <vector>           // for allocator, vector
-#include "catch_utils.hpp"  // for require_allclose
-#include "pentadsolver.hpp" // for pentadsolver_gpsv_batch
-#include "util/mesh.hpp"    // for Mesh
+#include <catch2/catch.hpp>         // for INTERNAL_CATCH_NOINTERNAL_CATCH_DEF
+#include <filesystem>               // for path
+#include <vector>                   // for allocator, vector
+#include "catch_utils.hpp"          // for require_allclose
+#include "pentadsolver.hpp"         // for pentadsolver_create, pentadsolver...
+#include "pentadsolver_handle.hpp"  // for pentadsolver_handle_t
+#include "util/mesh.hpp"            // for Mesh
+namespace mpl_ { struct na; }       // symbol leaking from catch
 
 template <typename Float>
 void test_from_file(const std::filesystem::path &file_name) {
   Mesh<Float> mesh(file_name);
-
-  pentadsolver_gpsv_batch(mesh.ds().data(),   // ds
+  pentadsolver_handle_t handle{};
+  pentadsolver_create(&handle);
+  pentadsolver_gpsv_batch(handle,             // context
+                          mesh.ds().data(),   // ds
                           mesh.dl().data(),   // dl
                           mesh.d().data(),    // d
                           mesh.du().data(),   // du

@@ -8,8 +8,11 @@
 template <typename Float>
 void test_from_file(const std::filesystem::path &file_name) {
   DeviceMesh<Float> mesh(file_name);
+  pentadsolver_handle_t handle{};
+  pentadsolver_create(&handle);
 
-  pentadsolver_gpsv_batch(mesh.ds_d(),        // ds
+  pentadsolver_gpsv_batch(handle,             // context
+                          mesh.ds().data(),   // ds
                           mesh.dl_d(),        // dl
                           mesh.d_d(),         // d
                           mesh.du_d(),        // du

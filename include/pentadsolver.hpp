@@ -2,6 +2,11 @@
 #define PENTADSOLVER_HPP_INCLUDED
 
 // ----------------------------------------------------------------------------
+// Internal Libraries and Headers
+// ----------------------------------------------------------------------------
+#include "pentadsolver_handle.hpp"
+
+// ----------------------------------------------------------------------------
 // Standard Libraries and Headers
 // ----------------------------------------------------------------------------
 #include <cstddef>
@@ -14,6 +19,12 @@
 #else
 #define EXTERN_C
 #endif
+// ----------------------------------------------------------------------------
+// Pentadsolver context functions 
+// ----------------------------------------------------------------------------
+
+EXTERN_C
+void pentadsolver_create(pentadsolver_handle_t *handle);
 
 // ----------------------------------------------------------------------------
 // Buffer size calculation
@@ -23,6 +34,7 @@
  * pentadsolver_D_gpsv_batch() for the solution of a batch pentadiagonal system
  * of size t_dims, along the axis t_solvedim.
  *
+ * @param[in] handle  Pentadsolver library context.
  * @param[in] ds      Array containing the 2nd lower diagonal.
  * @param[in] dl      Array containing the lower diagonal.
  * @param[in] d       Array containing the main diagonal.
@@ -37,31 +49,31 @@
  */
 EXTERN_C
 [[nodiscard]] size_t pentadsolver_D_gpsv_batch_buffer_size_ext(
-    const double *ds, const double *dl, const double *d, const double *du,
-    const double *dw, const double *x, const int *t_dims, int t_ndim,
-    int t_solvedim);
+    pentadsolver_handle_t handle, const double *ds, const double *dl,
+    const double *d, const double *du, const double *dw, const double *x,
+    const int *t_dims, int t_ndim, int t_solvedim);
 EXTERN_C
 [[nodiscard]] size_t pentadsolver_S_gpsv_batch_buffer_size_ext(
-    const float *ds, const float *dl, const float *d, const float *du,
-    const float *dw, const float *x, const int *t_dims, int t_ndim,
-    int t_solvedim);
+    pentadsolver_handle_t handle, const float *ds, const float *dl,
+    const float *d, const float *du, const float *dw, const float *x,
+    const int *t_dims, int t_ndim, int t_solvedim);
 
 #ifdef __cplusplus
 [[nodiscard]] size_t pentadsolver_gpsv_batch_buffer_size_ext(
-    const double *ds, const double *dl, const double *d, const double *du,
-    const double *dw, const double *x, const int *t_dims, int t_ndim,
-    int t_solvedim);
+    pentadsolver_handle_t handle, const double *ds, const double *dl,
+    const double *d, const double *du, const double *dw, const double *x,
+    const int *t_dims, int t_ndim, int t_solvedim);
 [[nodiscard]] size_t pentadsolver_gpsv_batch_buffer_size_ext(
-    const float *ds, const float *dl, const float *d, const float *du,
-    const float *dw, const float *x, const int *t_dims, int t_ndim,
-    int t_solvedim);
+    pentadsolver_handle_t handle, const float *ds, const float *dl,
+    const float *d, const float *du, const float *dw, const float *x,
+    const int *t_dims, int t_ndim, int t_solvedim);
 #endif
 // ----------------------------------------------------------------------------
 // Solver functions
 // ----------------------------------------------------------------------------
 /**
  * @brief This function computes the solution of multiple penta-diagonal systems
- * alng a specified axis.
+ * along a specified axis.
  *
  *
  * @param[in] ds      Array containing the 2nd lower diagonal.
@@ -80,27 +92,29 @@ EXTERN_C
  *
  */
 EXTERN_C
-void pentadsolver_D_gpsv_batch(const double *ds, const double *dl,
-                               const double *d, const double *du,
-                               const double *dw, double *x, const int *t_dims,
-                               int t_ndim, int t_solvedim, void *t_buffer);
-
-EXTERN_C
-void pentadsolver_S_gpsv_batch(const float *ds, const float *dl, const float *d,
-                               const float *du, const float *dw, float *x,
+void pentadsolver_D_gpsv_batch(pentadsolver_handle_t handle, const double *ds,
+                               const double *dl, const double *d,
+                               const double *du, const double *dw, double *x,
                                const int *t_dims, int t_ndim, int t_solvedim,
                                void *t_buffer);
 
-#ifdef __cplusplus
-void pentadsolver_gpsv_batch(const double *ds, const double *dl,
-                             const double *d, const double *du,
-                             const double *dw, double *x, const int *t_dims,
-                             int t_ndim, int t_solvedim, void *t_buffer);
+EXTERN_C
+void pentadsolver_S_gpsv_batch(pentadsolver_handle_t handle, const float *ds,
+                               const float *dl, const float *d, const float *du,
+                               const float *dw, float *x, const int *t_dims,
+                               int t_ndim, int t_solvedim, void *t_buffer);
 
-void pentadsolver_gpsv_batch(const float *ds, const float *dl, const float *d,
-                             const float *du, const float *dw, float *x,
+#ifdef __cplusplus
+void pentadsolver_gpsv_batch(pentadsolver_handle_t handle, const double *ds,
+                             const double *dl, const double *d,
+                             const double *du, const double *dw, double *x,
                              const int *t_dims, int t_ndim, int t_solvedim,
                              void *t_buffer);
+
+void pentadsolver_gpsv_batch(pentadsolver_handle_t handle, const float *ds,
+                             const float *dl, const float *d, const float *du,
+                             const float *dw, float *x, const int *t_dims,
+                             int t_ndim, int t_solvedim, void *t_buffer);
 #endif
 
 #endif /* ifndef PENTADSOLVER_HPP_INCLUDED */
