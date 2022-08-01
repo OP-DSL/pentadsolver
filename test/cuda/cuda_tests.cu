@@ -9,7 +9,7 @@ template <typename Float>
 void test_from_file(const std::filesystem::path &file_name) {
   DeviceMesh<Float> mesh(file_name);
   pentadsolver_handle_t handle{};
-  pentadsolver_create(&handle);
+  pentadsolver_create(&handle, nullptr, 0, nullptr);
 
   pentadsolver_gpsv_batch(handle,             // context
                           mesh.ds().data(),   // ds
@@ -26,6 +26,7 @@ void test_from_file(const std::filesystem::path &file_name) {
   cudaMemcpy(mesh.x().data(), mesh.x_d(), mesh.x().size() * sizeof(Float),
              cudaMemcpyDeviceToHost);
   require_allclose(mesh.u(), mesh.x());
+  pentadsolver_destroy(&handle);
 }
 
 TEMPLATE_TEST_CASE("x_solve: batch small", "[small]", double, float) { // NOLINT

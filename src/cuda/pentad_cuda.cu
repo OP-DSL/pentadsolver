@@ -264,10 +264,13 @@ void pentadsolver_gpsv_batch(const Float *ds, const Float *dl, const Float *d,
 }
 
 // ----------------------------------------------------------------------------
-// Pentadsolver context functions 
+// Pentadsolver context functions
 // ----------------------------------------------------------------------------
 
-void pentadsolver_create(pentadsolver_handle_t *handle) { *handle = nullptr; }
+void pentadsolver_create(pentadsolver_handle_t * /*handle*/,
+                         void * /*communicator*/, int /*ndims*/,
+                         const int * /*num_procs*/) {}
+void pentadsolver_destroy(pentadsolver_handle_t * /*handle*/) {}
 
 // ----------------------------------------------------------------------------
 // Buffer size calculation

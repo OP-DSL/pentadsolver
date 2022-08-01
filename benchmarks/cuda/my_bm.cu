@@ -11,7 +11,7 @@ template <typename Float> static void BM_PentadSolver(benchmark::State &state) {
   cudaMemcpy(x_d, mesh.x_d(), sizeof(Float) * mesh.x().size(),
              cudaMemcpyDeviceToDevice);
   pentadsolver_handle_t handle{};
-  pentadsolver_create(&handle);
+  pentadsolver_create(&handle, nullptr, 0, nullptr);
   for (auto _ : state) {
     pentadsolver_gpsv_batch(handle,             // context
                             mesh.ds().data(),   // ds

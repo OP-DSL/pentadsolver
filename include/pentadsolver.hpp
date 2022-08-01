@@ -19,12 +19,25 @@
 #else
 #define EXTERN_C
 #endif
+
 // ----------------------------------------------------------------------------
-// Pentadsolver context functions 
+// Pentadsolver context functions
 // ----------------------------------------------------------------------------
+/**
+ * @brief This creates a pentadsolver context object. NOOP in single node backends.
+ *
+ * @param[in] handle        Pentadsolver library context.
+ * @param[in] communicator  MPI Cartesian communicator in MPI backends.
+ * @param[in] ndims         Number of dimensions
+ * @param[in] num_procs     Number of MPI processes along each dimension.
+ *
+ */
+EXTERN_C
+void pentadsolver_create(pentadsolver_handle_t *handle, void *communicator,
+                         int ndims, const int *num_procs);
 
 EXTERN_C
-void pentadsolver_create(pentadsolver_handle_t *handle);
+void pentadsolver_destroy(pentadsolver_handle_t *handle);
 
 // ----------------------------------------------------------------------------
 // Buffer size calculation

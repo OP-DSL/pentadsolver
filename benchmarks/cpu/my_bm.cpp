@@ -8,7 +8,7 @@ template <typename Float> static void BM_PentadSolver(benchmark::State &state) {
       std::vector<int>(state.range(1), static_cast<int>(state.range(0))));
   std::vector<Float> x(mesh.x());
   pentadsolver_handle_t handle{};
-  pentadsolver_create(&handle);
+  pentadsolver_create(&handle, nullptr, 0, nullptr);
   for (auto _ : state) {
     pentadsolver_gpsv_batch(handle,             // context
                             mesh.ds().data(),   // ds
@@ -25,6 +25,7 @@ template <typename Float> static void BM_PentadSolver(benchmark::State &state) {
     mesh.x() = x;
     state.ResumeTiming();
   }
+  pentadsolver_destroy(&handle);
 }
 // Register the function as a benchmark
 //
