@@ -30,16 +30,17 @@ void gpsv_forward_x(const Float *ds, const Float *dl, const Float *d,
   Float w0 = dw[0];
   Float x0 = x[0];
   // row 1: norm, shift u0, w0
-  x[1]   = x[1] / d[1];
-  dss[1] = ds[1] / d[1]; // FIXME might segfault
-  dll[1] = dl[1] / d[1];
-  duu[1] = du[1] / d[1];
-  dww[1] = dw[1] / d[1]; // FIXME might segfault
-  x0     = x0 - u0 * x[1];
-  l0     = l0 - u0 * dss[1];
-  d0     = d0 - u0 * dll[1];
-  w0     = 00 - u0 * dww[1];
-  u0     = w0 - u0 * duu[1];
+  x[1]         = x[1] / d[1];
+  dss[1]       = ds[1] / d[1]; // FIXME might segfault
+  dll[1]       = dl[1] / d[1];
+  duu[1]       = du[1] / d[1];
+  dww[1]       = dw[1] / d[1]; // FIXME might segfault
+  Float u0_tmp = u0;
+  x0           = x0 - u0_tmp * x[1];
+  l0           = l0 - u0_tmp * dss[1];
+  d0           = d0 - u0_tmp * dll[1];
+  u0           = w0 - u0_tmp * duu[1];
+  w0           = 00 - u0_tmp * dww[1];
   // row 2: shift {s, l} with row 2, norm, shift u0, w0
   Float li  = dl[2];
   Float ddi = d[2] - li * duu[1];
@@ -49,39 +50,41 @@ void gpsv_forward_x(const Float *ds, const Float *dl, const Float *d,
   duu[2]    = (du[2] - li * dww[1]) / ddi; // FIXME might segfault
   dww[2]    = (dw[2]) / ddi;               // FIXME might segfault
   if (3 < t_sys_size) {                    // check if row 2 is the last
-    x0 = x0 - u0 * x[2];
-    l0 = l0 - u0 * dss[2];
-    d0 = d0 - u0 * dll[2];
-    w0 = u0 * dww[2];
-    u0 = w0 - u0 * duu[2];
-    // from row 3 till t_sys_size -1:
+    u0_tmp = u0;
+    x0     = x0 - u0_tmp * x[2];
+    l0     = l0 - u0_tmp * dss[2];
+    d0     = d0 - u0_tmp * dll[2];
+    u0     = w0 - u0_tmp * duu[2];
+    w0     = 00 - u0_tmp * dww[2];
+    // from row 3 till t_sys_size:
     // shift {s, l} with row i-2 and i-1, norm, shift u0, w0
-    for (int i = 3; i < t_sys_size - 1; ++i) {
+    for (int i = 3; i < t_sys_size; ++i) {
       Float si = ds[i];
       li       = dl[i] - si * duu[i - 2];
       ddi      = d[i] - si * dww[i - 2] - li * duu[i - 1];
-      x[i]     = (-si * x[i - 2] - li * x[i - 1]) / ddi;
+      x[i]     = (x[i] - si * x[i - 2] - li * x[i - 1]) / ddi;
       dss[i]   = (-si * dss[i - 2] - li * dss[i - 1]) / ddi;
       dll[i]   = (-si * dll[i - 2] - li * dll[i - 1]) / ddi;
       duu[i]   = (du[i] - li * dww[i - 1]) / ddi;
-      dww[i]   = (dw[i]) / ddi;
+      dww[i]   = (dw[i]) / ddi; // FIXME might segfault
       // shift u0, w0
-      x0 = x0 - u0 * x[i];
-      l0 = l0 - u0 * dss[i];
-      d0 = d0 - u0 * dll[i];
-      w0 = u0 * dww[i]; // FIXME might segfault
-      u0 = w0 - u0 * duu[i];
+      u0_tmp = u0;
+      x0     = x0 - u0_tmp * x[i];
+      l0     = l0 - u0_tmp * dss[i];
+      d0     = d0 - u0_tmp * dll[i];
+      u0     = w0 - u0_tmp * duu[i];
+      w0     = 00 - u0_tmp * dww[i];
     }
     // last row shift {s, l} with row i-2 and i-1, norm
-    size_t i = t_sys_size - 1;
-    Float si = ds[i];
-    li       = dl[i] - si * duu[i - 2];
-    ddi      = d[i] - si * dww[i - 2] - li * duu[i - 1];
-    x[i]     = (-si * x[i - 2] - li * x[i - 1]) / ddi;
-    dss[i]   = (-si * dss[i - 2] - li * dss[i - 1]) / ddi;
-    dll[i]   = (-si * dll[i - 2] - li * dll[i - 1]) / ddi;
-    duu[i]   = (du[i] - li * dww[i - 1]) / ddi; // FIXME might segfault
-    dww[i]   = (dw[i]) / ddi;                   // FIXME might segfault
+    // size_t i = t_sys_size - 1;
+    // Float si = ds[i];
+    // li       = dl[i] - si * duu[i - 2];
+    // ddi      = d[i] - si * dww[i - 2] - li * duu[i - 1];
+    // x[i]     = (x[i] - si * x[i - 2] - li * x[i - 1]) / ddi;
+    // dss[i]   = (-si * dss[i - 2] - li * dss[i - 1]) / ddi;
+    // dll[i]   = (-si * dll[i - 2] - li * dll[i - 1]) / ddi;
+    // duu[i]   = (du[i] - li * dww[i - 1]) / ddi; // FIXME might segfault
+    // dww[i]   = (dw[i]) / ddi;                   // FIXME might segfault
   }
   // norm first row
   s0 = s0 / d0;
@@ -89,17 +92,27 @@ void gpsv_forward_x(const Float *ds, const Float *dl, const Float *d,
   u0 = u0 / d0;
   w0 = w0 / d0;
   x0 = x0 / d0;
+  // last - first to setup for reduced
+  // s l 1 0 u w         -> s l 1 0 u w
+  // 0 s l 1 u w         -> s l 0 1 u w
+  size_t last = t_sys_size - 1;
+  li          = dll[last];
+  x[last]     = x[last] - li * x0;
+  dss[last]   = -li * s0;
+  dll[last]   = dss[last] - li * l0;
+  duu[last]   = duu[last] - li * u0;
+  dww[last]   = dww[last] - li * w0;
   // to combuf
   comm_buf[0] = s0;
-  comm_buf[1] = dss[t_sys_size - 1];
+  comm_buf[1] = dss[last];
   comm_buf[2] = l0;
-  comm_buf[3] = dll[t_sys_size - 1];
+  comm_buf[3] = dll[last];
   comm_buf[4] = u0;
-  comm_buf[5] = duu[t_sys_size - 1]; // NOLINT
-  comm_buf[6] = w0;                  // NOLINT
-  comm_buf[7] = dww[t_sys_size - 1]; // NOLINT
-  comm_buf[8] = x0;                  // NOLINT
-  comm_buf[9] = x[t_sys_size - 1];   // NOLINT
+  comm_buf[5] = duu[last]; // NOLINT
+  comm_buf[6] = w0;        // NOLINT
+  comm_buf[7] = dww[last]; // NOLINT
+  comm_buf[8] = x0;        // NOLINT
+  comm_buf[9] = x[last];   // NOLINT
 }
 
 template <typename Float>
@@ -128,7 +141,7 @@ void gpsv_backward_x(const Float *dss, const Float *dll, const Float *duu,
   Float x_i_p2      = xp1;
   for (int i = t_sys_size - 2; i > 0; --i) {
     x[i] =
-        x[i] - dww[i] * x_i_p2 - duu[i] - x[i + 1] - dll[i] * x0 - dss[i] * xm1;
+        x[i] - dww[i] * x_i_p2 - duu[i] * x[i + 1] - dll[i] * x0 - dss[i] * xm1;
     x_i_p2 = x[i + 1];
   }
 }
@@ -205,7 +218,7 @@ inline void solve_reduced_pcr(pentadsolver_handle_t params, Float *rcvbuf,
     MPI_Waitall(4, reqs.data(), MPI_STATUS_IGNORE);
 
     // PCR algorithm
-#pragma omp parallel for
+// #pragma omp parallel for
     for (int id = 0; id < t_n_sys; id++) {
       // s l 1 0 u w         -> s l 1 0 u w
       // s l 0 1 u w         -> s l 0 1 u w
@@ -285,16 +298,18 @@ inline void solve_reduced_pcr(pentadsolver_handle_t params, Float *rcvbuf,
       Float tmp0            = -l0 * wm1 - s0 * wm2 - u0 * lp1 - w0 * lp2;
       Float d1              = 1 - l1 * wm1 - s1 * wm2 - u1 * lp1 - w1 * lp2;
       Float tmp1            = -l1 * um1 - s1 * um2 - u1 * sp1 - w1 * sp2;
-      sndbuf[sidx + s0_idx] = -l0 * sm1 - s0 * sm2;                        // s0
-      sndbuf[sidx + l0_idx] = -l0 * lm1 - s0 * lm2;                        // l0
-      sndbuf[sidx + u0_idx] = -u0 * up1 - w0 * up2;                        // u0
-      sndbuf[sidx + w0_idx] = -u0 * wp1 - w0 * wp2;                        // w0
-      sndbuf[sidx + x0_idx] -= -u0 * xp1 - w0 * xp2 - l0 * xm1 - s0 * xm2; // x0
-      sndbuf[sidx + s1_idx] = -l1 * sm1 - s1 * sm2;                        // s1
-      sndbuf[sidx + l1_idx] = -l1 * lm1 - s1 * lm2;                        // l1
-      sndbuf[sidx + u1_idx] = -u1 * up1 - w1 * up2;                        // u1
-      sndbuf[sidx + w1_idx] = -u1 * wp1 - w1 * wp2;                        // w1
-      sndbuf[sidx + x1_idx] -= -u1 * xp1 - w1 * xp2 - l1 * xm1 - s1 * xm2; // x1
+      sndbuf[sidx + s0_idx] = -l0 * sm1 - s0 * sm2; // s0
+      sndbuf[sidx + l0_idx] = -l0 * lm1 - s0 * lm2; // l0
+      sndbuf[sidx + u0_idx] = -u0 * up1 - w0 * up2; // u0
+      sndbuf[sidx + w0_idx] = -u0 * wp1 - w0 * wp2; // w0
+      sndbuf[sidx + x0_idx] =
+          x0 - u0 * xp1 - w0 * xp2 - l0 * xm1 - s0 * xm2; // x0
+      sndbuf[sidx + s1_idx] = -l1 * sm1 - s1 * sm2;       // s1
+      sndbuf[sidx + l1_idx] = -l1 * lm1 - s1 * lm2;       // l1
+      sndbuf[sidx + u1_idx] = -u1 * up1 - w1 * up2;       // u1
+      sndbuf[sidx + w1_idx] = -u1 * wp1 - w1 * wp2;       // w1
+      sndbuf[sidx + x1_idx] =
+          x1 - u1 * xp1 - w1 * xp2 - l1 * xm1 - s1 * xm2; // x1
       // zero out tmp values
       //     s l d T u w     -> s l 1 0 u w
       //     s l T d u w     -> s l T d u w
@@ -334,6 +349,8 @@ inline void solve_reduced_pcr(pentadsolver_handle_t params, Float *rcvbuf,
     constexpr int x1_idx = 9;
     rcvbufR[i]           = sndbuf[i * nvar_per_sys + x0_idx];
     rcvbufR[t_n_sys + i] = sndbuf[i * nvar_per_sys + x1_idx];
+    rcvbufL[i]           = 0.0;
+    rcvbufL[t_n_sys + i] = 0.0;
   }
   // send 1-1 row left and right
   {
