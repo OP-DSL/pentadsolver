@@ -549,7 +549,8 @@ inline void solve_reduced_pcr(pentadsolver_handle_t params, Float *rcvbuf,
   int nproc                  = params->num_mpi_procs[t_solvedim];
   constexpr int nvar_per_sys = 10;
   Float *rcvbufL             = rcvbuf;
-  Float *rcvbufR             = rcvbuf + t_n_sys * nvar_per_sys;
+  // eliminate_bottom_rows require whole systems in messages
+  Float *rcvbufR = rcvbuf + t_n_sys * nvar_per_sys;
 
   // eliminate 2 rows from reduced system
   eliminate_bottom_rows_from_reduced(params, t_solvedim, t_n_sys, rcvbufL,
@@ -676,6 +677,82 @@ inline void solve_reduced_pcr(pentadsolver_handle_t params, Float *rcvbuf,
 }
 
 template <typename Float>
+inline void solve_reduced_jacobi(pentadsolver_handle_t params, Float *rcvbuf,
+                                 Float *sndbuf, int t_solvedim, int t_n_sys) {
+  int rank                   = params->mpi_coords[t_solvedim];
+  int nproc                  = params->num_mpi_procs[t_solvedim];
+  constexpr int nvar_per_sys = 10;
+  constexpr int s_idx        = 0;
+  constexpr int l_idx        = 2;
+  constexpr int u_idx        = 4;
+  constexpr int w_idx        = 6;
+  constexpr int x_idx        = 8;
+  Float *rcvbufL             = rcvbuf;
+  Float *rcvbufR             = rcvbuf + t_n_sys * nvar_per_sys;
+
+  // eliminate 2 rows from reduced system
+  eliminate_bottom_rows_from_reduced(params, t_solvedim, t_n_sys, rcvbufL,
+                                     rcvbufR, sndbuf);
+  Float *x_estimates = rcvbuf;
+  rcvbufL            = x_estimates + 2 * t_n_sys;
+  rcvbufR            = rcvbufL + 2 * t_n_sys;
+
+  // TODO remove rank 0 from
+#pragma omp parallel for
+  for (size_t id = 0; id < t_n_sys; ++id) {
+    x_estimates[2 * id]     = sndbuf[id * nvar_per_sys + x_idx];
+    x_estimates[2 * id + 1] = sndbuf[id * nvar_per_sys + x_idx + 1];
+  }
+
+  int iter               = 0;
+  constexpr int max_iter = 100; // TODO move to params
+
+  do {
+    send_rows_to_nodes<communication_dir_t::ALL, Float>(
+        params, t_solvedim, 1, t_n_sys * 2, x_estimates, rcvbufL, rcvbufR);
+// TODO norm calculation and hide latency of the above
+#pragma omp parallel for
+    for (size_t id = 0; id < t_n_sys; ++id) {
+      // x_0 = (d_0 - s_{0} * x_{-2} - l_{0} * x_{-1} - u_{0} * x_{1} - w_{0} *
+      // x_{2}) / b_0
+      size_t sys_idx          = id * nvar_per_sys;
+      x_estimates[2 * id]     = sndbuf[sys_idx + x_idx];
+      x_estimates[2 * id + 1] = sndbuf[sys_idx + x_idx + 1];
+      if (rank != nproc - 1) {
+        x_estimates[2 * id] -= sndbuf[sys_idx + u_idx] * rcvbufR[2 * id] +
+                               sndbuf[sys_idx + w_idx] * rcvbufR[2 * id + 1];
+        x_estimates[2 * id + 1] -=
+            sndbuf[sys_idx + u_idx + 1] * rcvbufR[2 * id] +
+            sndbuf[sys_idx + w_idx + 1] * rcvbufR[2 * id + 1];
+      }
+      if (rank) {
+        x_estimates[2 * id] -= sndbuf[sys_idx + s_idx] * rcvbufL[2 * id] +
+                               sndbuf[sys_idx + l_idx] * rcvbufL[2 * id + 1];
+        x_estimates[2 * id + 1] -=
+            sndbuf[sys_idx + s_idx + 1] * rcvbufL[2 * id] +
+            sndbuf[sys_idx + l_idx + 1] * rcvbufL[2 * id + 1];
+      }
+    }
+
+  } while (++iter < max_iter);
+
+  // Change back rcvbufR (used in backward)
+  rcvbufR = rcvbuf + t_n_sys * nvar_per_sys;
+
+// pack results back:
+#pragma omp parallel for
+  for (size_t i = 0; i < t_n_sys; ++i) {
+    sndbuf[i * nvar_per_sys + x_idx]     = x_estimates[2 * i];
+    sndbuf[i * nvar_per_sys + x_idx + 1] = x_estimates[2 * i + 1];
+    rcvbufR[2 * i + 0]                   = 0.0;
+    rcvbufR[2 * i + 1]                   = 0.0;
+  }
+  // send solution to rank - 1 (left/UP)
+  send_rows_to_nodes<communication_dir_t::UP, Float>(
+      params, t_solvedim, 1, t_n_sys * 2, x_estimates, nullptr, rcvbufR);
+}
+
+template <typename Float>
 void gpsv_batched_forward(const Float *ds, const Float *dl, const Float *d,
                           const Float *du, const Float *dw, Float *x,
                           Float *dss, Float *dll, Float *duu, Float *dww,
@@ -739,6 +816,7 @@ void pentadsolver_gpsv_batch(pentadsolver_handle_t handle, const Float *ds,
   gpsv_batched_forward(ds, dl, d, du, dw, x, dss, dll, duu, dww, sndbuf, rcvbuf,
                        t_dims, t_ndims, n_sys, t_solvedim);
   solve_reduced_pcr(handle, rcvbuf, sndbuf, t_solvedim, n_sys);
+  // solve_reduced_jacobi(handle, rcvbuf, sndbuf, t_solvedim, n_sys);
   gpsv_backward_batched(dss, dll, duu, dww, x, sndbuf,
                         rcvbuf + reduced_size_elem * n_sys, t_dims, t_ndims,
                         n_sys, t_solvedim);
