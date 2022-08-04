@@ -125,11 +125,11 @@ TEMPLATE_TEST_CASE("x_solve: batch small", "[small]", double, float) { // NOLINT
   }
 }
 
-// TEMPLATE_TEST_CASE("y_solve: batch small", "[small]", double, float) { // NOLINT
-//   SECTION("ndims: 2") {
-//     test_solver_from_file<TestType>("files/two_dim_small_solve1");
-//   }
-// }
+TEMPLATE_TEST_CASE("y_solve: batch small", "[small]", double, float) { // NOLINT
+  SECTION("ndims: 2") {
+    test_solver_from_file<TestType>("files/two_dim_small_solve1");
+  }
+}
 
 TEMPLATE_TEST_CASE("x_solve: batch large", "[large]", double, float) { // NOLINT
   SECTION("ndims: 1") {
@@ -143,17 +143,17 @@ TEMPLATE_TEST_CASE("x_solve: batch large", "[large]", double, float) { // NOLINT
   }
 }
 
-// TEMPLATE_TEST_CASE("y_solve: batch large", "[large]", double, float) { // NOLINT
-//   SECTION("ndims: 2") {
-//     test_solver_from_file<TestType>("files/two_dim_large_solve1");
-//   }
-//   SECTION("ndims: 3") {
-//     test_solver_from_file<TestType>("files/three_dim_large_solve1");
-//   }
-// }
-//
-// TEMPLATE_TEST_CASE("z_solve: batch large", "[large]", double, float) { // NOLINT
-//   SECTION("ndims: 3") {
-//     test_solver_from_file<TestType>("files/three_dim_large_solve2");
-//   }
-// }
+TEMPLATE_TEST_CASE("y_solve: batch large", "[large]", double, float) { // NOLINT
+  SECTION("ndims: 2") {
+    test_solver_from_file<TestType>("files/two_dim_large_solve1");
+  }
+  SECTION("ndims: 3") {
+    test_solver_from_file<TestType>("files/three_dim_large_solve1");
+  }
+}
+
+TEMPLATE_TEST_CASE("z_solve: batch large", "[large]", double, float) { // NOLINT
+  SECTION("ndims: 3") {
+    test_solver_from_file<TestType>("files/three_dim_large_solve2");
+  }
+}
