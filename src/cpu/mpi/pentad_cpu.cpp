@@ -693,48 +693,86 @@ inline void solve_reduced_jacobi(pentadsolver_handle_t params, Float *rcvbuf,
   // eliminate 2 rows from reduced system
   eliminate_bottom_rows_from_reduced(params, t_solvedim, t_n_sys, rcvbufL,
                                      rcvbufR, sndbuf);
-  Float *x_estimates = rcvbuf;
-  rcvbufL            = x_estimates + 2 * t_n_sys;
-  rcvbufR            = rcvbufL + 2 * t_n_sys;
+  Float *x_cur  = rcvbuf;
+  Float *x_prev = x_cur + 2 * t_n_sys;
+  rcvbufL       = x_prev + 2 * t_n_sys;
+  rcvbufR       = rcvbufL + 2 * t_n_sys;
 
   // TODO remove rank 0 from
 #pragma omp parallel for
   for (size_t id = 0; id < t_n_sys; ++id) {
-    x_estimates[2 * id]     = sndbuf[id * nvar_per_sys + x_idx];
-    x_estimates[2 * id + 1] = sndbuf[id * nvar_per_sys + x_idx + 1];
+    x_cur[2 * id]     = sndbuf[id * nvar_per_sys + x_idx];
+    x_cur[2 * id + 1] = sndbuf[id * nvar_per_sys + x_idx + 1];
   }
 
-  int iter               = 0;
-  constexpr int max_iter = 100; // TODO move to params
+  int iter                     = 0;
+  constexpr int max_iter       = 100;   // TODO move to params
+  constexpr double jacobi_atol = 1e-12; // TODO move to params
+  constexpr double jacobi_rtol = 1e-11; // TODO move to params
+  MPI_Request norm_req         = MPI_REQUEST_NULL;
 
+  double local_norm       = -1;
+  double local_norm_send  = -1;
+  double global_norm0     = -1;
+  double global_norm_recv = -1;
+  bool need_iter          = true;
   do {
     send_rows_to_nodes<communication_dir_t::ALL, Float>(
-        params, t_solvedim, 1, t_n_sys * 2, x_estimates, rcvbufL, rcvbufR);
+        params, t_solvedim, 1, t_n_sys * 2, x_cur, rcvbufL, rcvbufR);
+    // NORMCOM start
+
+    // update
+    // NORMCOM end?
 // TODO norm calculation and hide latency of the above
 #pragma omp parallel for
     for (size_t id = 0; id < t_n_sys; ++id) {
       // x_0 = (d_0 - s_{0} * x_{-2} - l_{0} * x_{-1} - u_{0} * x_{1} - w_{0} *
       // x_{2}) / b_0
-      size_t sys_idx          = id * nvar_per_sys;
-      x_estimates[2 * id]     = sndbuf[sys_idx + x_idx];
-      x_estimates[2 * id + 1] = sndbuf[sys_idx + x_idx + 1];
+      size_t sys_idx     = id * nvar_per_sys;
+      x_prev[2 * id]     = x_cur[2 * id];
+      x_prev[2 * id + 1] = x_cur[2 * id + 1];
+      x_cur[2 * id]      = sndbuf[sys_idx + x_idx];
+      x_cur[2 * id + 1]  = sndbuf[sys_idx + x_idx + 1];
       if (rank != nproc - 1) {
-        x_estimates[2 * id] -= sndbuf[sys_idx + u_idx] * rcvbufR[2 * id] +
-                               sndbuf[sys_idx + w_idx] * rcvbufR[2 * id + 1];
-        x_estimates[2 * id + 1] -=
-            sndbuf[sys_idx + u_idx + 1] * rcvbufR[2 * id] +
-            sndbuf[sys_idx + w_idx + 1] * rcvbufR[2 * id + 1];
+        Float dp1 = rcvbufR[2 * id];
+        Float dp2 = rcvbufR[2 * id + 1];
+        x_cur[2 * id] -=
+            sndbuf[sys_idx + u_idx] * dp1 + sndbuf[sys_idx + w_idx] * dp2;
+        x_cur[2 * id + 1] -= sndbuf[sys_idx + u_idx + 1] * dp1 +
+                             sndbuf[sys_idx + w_idx + 1] * dp2;
       }
       if (rank) {
-        x_estimates[2 * id] -= sndbuf[sys_idx + s_idx] * rcvbufL[2 * id] +
-                               sndbuf[sys_idx + l_idx] * rcvbufL[2 * id + 1];
-        x_estimates[2 * id + 1] -=
-            sndbuf[sys_idx + s_idx + 1] * rcvbufL[2 * id] +
-            sndbuf[sys_idx + l_idx + 1] * rcvbufL[2 * id + 1];
+        Float dm2 = rcvbufL[2 * id];
+        Float dm1 = rcvbufL[2 * id + 1];
+        x_cur[2 * id] -=
+            sndbuf[sys_idx + s_idx] * dm2 + sndbuf[sys_idx + l_idx] * dm1;
+        x_cur[2 * id + 1] -= sndbuf[sys_idx + s_idx + 1] * dm2 +
+                             sndbuf[sys_idx + l_idx + 1] * dm1;
       }
     }
 
-  } while (++iter < max_iter);
+    local_norm = 0;
+    // #pragma omp parallel for reduction(max : local_norm)
+    for (size_t i = 0; i < 2UL * t_n_sys; ++i) {
+      double diff0 = x_prev[i] - x_cur[i];
+      local_norm   = std::max(local_norm, diff0 * diff0);
+    }
+    if (iter > 0) { // skip until the first sum is ready
+      MPI_Waitall(1, &norm_req, MPI_STATUS_IGNORE);
+      norm_req         = MPI_REQUEST_NULL;
+      global_norm_recv = sqrt(global_norm_recv / 2 * nproc);
+      if (global_norm0 < 0) {
+        global_norm0 = global_norm_recv;
+      }
+    }
+    local_norm_send = local_norm;
+    need_iter       = iter == 0 || (jacobi_atol < global_norm_recv &&
+                              jacobi_rtol < global_norm_recv / global_norm0);
+    if (iter + 1 < max_iter && need_iter) {
+      MPI_Iallreduce(&local_norm_send, &global_norm_recv, 1, MPI_DOUBLE,
+                     MPI_SUM, params->communicators[t_solvedim], &norm_req);
+    }
+  } while (++iter < max_iter && need_iter);
 
   // Change back rcvbufR (used in backward)
   rcvbufR = rcvbuf + t_n_sys * nvar_per_sys;
@@ -742,14 +780,14 @@ inline void solve_reduced_jacobi(pentadsolver_handle_t params, Float *rcvbuf,
 // pack results back:
 #pragma omp parallel for
   for (size_t i = 0; i < t_n_sys; ++i) {
-    sndbuf[i * nvar_per_sys + x_idx]     = x_estimates[2 * i];
-    sndbuf[i * nvar_per_sys + x_idx + 1] = x_estimates[2 * i + 1];
+    sndbuf[i * nvar_per_sys + x_idx]     = x_cur[2 * i];
+    sndbuf[i * nvar_per_sys + x_idx + 1] = x_cur[2 * i + 1];
     rcvbufR[2 * i + 0]                   = 0.0;
     rcvbufR[2 * i + 1]                   = 0.0;
   }
   // send solution to rank - 1 (left/UP)
   send_rows_to_nodes<communication_dir_t::UP, Float>(
-      params, t_solvedim, 1, t_n_sys * 2, x_estimates, nullptr, rcvbufR);
+      params, t_solvedim, 1, t_n_sys * 2, x_cur, nullptr, rcvbufR);
 }
 
 template <typename Float>
@@ -815,8 +853,8 @@ void pentadsolver_gpsv_batch(pentadsolver_handle_t handle, const Float *ds,
   Float *rcvbuf                   = sndbuf + n_sys * reduced_size_elem;
   gpsv_batched_forward(ds, dl, d, du, dw, x, dss, dll, duu, dww, sndbuf, rcvbuf,
                        t_dims, t_ndims, n_sys, t_solvedim);
-  solve_reduced_pcr(handle, rcvbuf, sndbuf, t_solvedim, n_sys);
-  // solve_reduced_jacobi(handle, rcvbuf, sndbuf, t_solvedim, n_sys);
+  // solve_reduced_pcr(handle, rcvbuf, sndbuf, t_solvedim, n_sys);
+  solve_reduced_jacobi(handle, rcvbuf, sndbuf, t_solvedim, n_sys);
   gpsv_backward_batched(dss, dll, duu, dww, x, sndbuf,
                         rcvbuf + reduced_size_elem * n_sys, t_dims, t_ndims,
                         n_sys, t_solvedim);
