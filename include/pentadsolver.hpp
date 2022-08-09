@@ -24,7 +24,8 @@
 // Pentadsolver context functions
 // ----------------------------------------------------------------------------
 /**
- * @brief This creates a pentadsolver context object. NOOP in single node backends.
+ * @brief This creates a pentadsolver context object. NOOP in single node
+ * backends.
  *
  * @param[in] handle        Pentadsolver library context.
  * @param[in] communicator  MPI Cartesian communicator in MPI backends.
@@ -99,9 +100,8 @@ EXTERN_C
  * @param[in] t_dims      The dimensions of the LHS arrays.
  * @param[in] t_ndims     The length of the t_dims array.
  * @param[in] t_solvedim  The dimension along which the systems are formed.
- * @param[in] t_buffer  Buffer located by the user, with size at least
- * pentadsolver_D_gpsv_batch_buffer_size_ext(), if t_buffer == nullptr, the
- * function will allocate extra memory
+ * @param[in] t_buffer  Buffer allocated by the user, with size at least
+ * pentadsolver_D_gpsv_batch_buffer_size_ext()
  *
  */
 EXTERN_C
