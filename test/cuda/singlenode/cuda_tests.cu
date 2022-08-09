@@ -12,7 +12,7 @@ void test_from_file(const std::filesystem::path &file_name) {
   pentadsolver_create(&handle, nullptr, 0, nullptr);
 
   pentadsolver_gpsv_batch(handle,             // context
-                          mesh.ds().data(),   // ds
+                          mesh.ds_d(),        // ds
                           mesh.dl_d(),        // dl
                           mesh.d_d(),         // d
                           mesh.du_d(),        // du
