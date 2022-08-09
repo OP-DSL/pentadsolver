@@ -78,7 +78,6 @@ void shift_sl_strided(const Float *ds, const Float *dl, const Float *d,
                       const Float *du, const Float *dw, Float *xx, Float *dss,
                       Float *dll, Float *duu, Float *dww, size_t idx,
                       size_t t_stride) {
-  // index namin olds for r1, in case of r0: l, d, tmp, u, w x
   size_t ri   = idx * t_stride;
   size_t rim1 = (idx - 1) * t_stride;
   size_t rim2 = (idx - 2) * t_stride;
@@ -535,7 +534,7 @@ void eliminate_bottom_rows_from_reduced(pentadsolver_handle_t params,
 }
 
 // Solve reduced system with PCR algorithm.
-// sndbuf holds the last and first row of each system after the forward pass
+// sndbuf holds the first two row of each system after the forward pass
 // as an input and the solutions at the x positions as an output. sndbuf
 // stores each system packed as: s0, s1, l0, l1, u0, u1, w0, w1, x0, x1 For
 // each node for each system the first and last row of create the reduced
