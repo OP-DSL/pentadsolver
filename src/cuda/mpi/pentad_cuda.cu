@@ -4,13 +4,11 @@
 #include <functional>            // for multiplies
 #include <numeric>               // for accumulate
 #include "pentadsolver_cuda.hpp" // for pentadsolver_gpsv_batch
-#include <cstdio>                // TODO remove
 
 namespace {
 template <typename REAL>
 const MPI_Datatype mpi_datatype =
     std::is_same<REAL, double>::value ? MPI_DOUBLE : MPI_FLOAT;
-constexpr size_t full_line_l = 6;
 enum class communication_dir_t { DOWN = 1, UP = 2, ALL = 3 };
 } // namespace
 
@@ -155,16 +153,16 @@ gpsv_forward_x(const Float *__restrict__ ds, const Float *__restrict__ dl,
   duu[i * t_stride_ws] = dww[i * t_stride_ws] - li * duu[(i + 1) * t_stride_ws];
   dww[i * t_stride_ws] = -li * dww[(i + 1) * t_stride_ws];
   // copy last two rows to combuf for reduced step
-  bottom[t_stride_ws * 2 * 0 + sys_idx] = dss[i * t_stride_ws];
-  bottom[t_stride_ws * 2 * 1 + sys_idx] = dss[(i + 1) * t_stride_ws];
-  bottom[t_stride_ws * 2 * 2 + sys_idx] = dll[i * t_stride_ws];
-  bottom[t_stride_ws * 2 * 3 + sys_idx] = dll[(i + 1) * t_stride_ws];
-  bottom[t_stride_ws * 2 * 4 + sys_idx] = duu[i * t_stride_ws];
-  bottom[t_stride_ws * 2 * 5 + sys_idx] = duu[(i + 1) * t_stride_ws]; // NOLINT
-  bottom[t_stride_ws * 2 * 6 + sys_idx] = dww[i * t_stride_ws];       // NOLINT
-  bottom[t_stride_ws * 2 * 7 + sys_idx] = dww[(i + 1) * t_stride_ws]; // NOLINT
-  bottom[t_stride_ws * 2 * 8 + sys_idx] = x[i];                       // NOLINT
-  bottom[t_stride_ws * 2 * 9 + sys_idx] = x[(i + 1)];                 // NOLINT
+  bottom[t_stride_ws * 0 + sys_idx] = dss[i * t_stride_ws];
+  bottom[t_stride_ws * 1 + sys_idx] = dss[(i + 1) * t_stride_ws];
+  bottom[t_stride_ws * 2 + sys_idx] = dll[i * t_stride_ws];
+  bottom[t_stride_ws * 3 + sys_idx] = dll[(i + 1) * t_stride_ws];
+  bottom[t_stride_ws * 4 + sys_idx] = duu[i * t_stride_ws];
+  bottom[t_stride_ws * 5 + sys_idx] = duu[(i + 1) * t_stride_ws]; // NOLINT
+  bottom[t_stride_ws * 6 + sys_idx] = dww[i * t_stride_ws];       // NOLINT
+  bottom[t_stride_ws * 7 + sys_idx] = dww[(i + 1) * t_stride_ws]; // NOLINT
+  bottom[t_stride_ws * 8 + sys_idx] = x[i];                       // NOLINT
+  bottom[t_stride_ws * 9 + sys_idx] = x[(i + 1)];                 // NOLINT
   // Prepare layout of the first two row for comm
   // NOLINTNEXTLINE hicpp-no-array-decay
   pack_first_rows_forward(ds[0], r0, r1, top, sys_idx, t_stride_ws);
@@ -202,7 +200,8 @@ gpsv_forward_strided(const Float *__restrict__ ds, const Float *__restrict__ dl,
     // row i - (dds*row{i-2}) - ddu'-row{i-1}, normalise
     // TODO: check with Istvan -- ds, dl, du, dw requirements -- last elements
     // must be 0, but are they accessible? remove comp du2[N-1], dw2[N-2..N-1]
-    shift_sl(ds, dl, d, du, dw, x, dss, dll, duu, dww, i, t_stride_ws, 1UL);
+    shift_sl(ds, dl, d, du, dw, x, dss, dll, duu, dww, i, t_stride_ws,
+             t_stride);
     shift_uw(dss, dll, duu, dww, x[i * t_stride], i * t_stride_ws,
              r0); // NOLINT hicpp-no-array-decay
     shift_uw(dss, dll, duu, dww, x[i * t_stride], i * t_stride_ws,
@@ -226,16 +225,16 @@ gpsv_forward_strided(const Float *__restrict__ ds, const Float *__restrict__ dl,
   duu[i * t_stride_ws] = dww[i * t_stride_ws] - li * duu[(i + 1) * t_stride_ws];
   dww[i * t_stride_ws] = -li * dww[(i + 1) * t_stride_ws];
   // copy last two rows to combuf for reduced step
-  bottom[t_stride_ws * 2 * 0 + sys_idx] = dss[i * t_stride_ws];
-  bottom[t_stride_ws * 2 * 1 + sys_idx] = dss[(i + 1) * t_stride_ws];
-  bottom[t_stride_ws * 2 * 2 + sys_idx] = dll[i * t_stride_ws];
-  bottom[t_stride_ws * 2 * 3 + sys_idx] = dll[(i + 1) * t_stride_ws];
-  bottom[t_stride_ws * 2 * 4 + sys_idx] = duu[i * t_stride_ws];
-  bottom[t_stride_ws * 2 * 5 + sys_idx] = duu[(i + 1) * t_stride_ws]; // NOLINT
-  bottom[t_stride_ws * 2 * 6 + sys_idx] = dww[i * t_stride_ws];       // NOLINT
-  bottom[t_stride_ws * 2 * 7 + sys_idx] = dww[(i + 1) * t_stride_ws]; // NOLINT
-  bottom[t_stride_ws * 2 * 8 + sys_idx] = x[i * t_stride];            // NOLINT
-  bottom[t_stride_ws * 2 * 9 + sys_idx] = x[(i + 1) * t_stride];      // NOLINT
+  bottom[t_stride_ws * 0 + sys_idx] = dss[i * t_stride_ws];
+  bottom[t_stride_ws * 1 + sys_idx] = dss[(i + 1) * t_stride_ws];
+  bottom[t_stride_ws * 2 + sys_idx] = dll[i * t_stride_ws];
+  bottom[t_stride_ws * 3 + sys_idx] = dll[(i + 1) * t_stride_ws];
+  bottom[t_stride_ws * 4 + sys_idx] = duu[i * t_stride_ws];
+  bottom[t_stride_ws * 5 + sys_idx] = duu[(i + 1) * t_stride_ws]; // NOLINT
+  bottom[t_stride_ws * 6 + sys_idx] = dww[i * t_stride_ws];       // NOLINT
+  bottom[t_stride_ws * 7 + sys_idx] = dww[(i + 1) * t_stride_ws]; // NOLINT
+  bottom[t_stride_ws * 8 + sys_idx] = x[i * t_stride];            // NOLINT
+  bottom[t_stride_ws * 9 + sys_idx] = x[(i + 1) * t_stride];      // NOLINT
   // Prepare layout of the first two row for comm
   // NOLINTNEXTLINE hicpp-no-array-decay
   pack_first_rows_forward(ds[0], r0, r1, top, sys_idx, t_stride_ws);
@@ -407,9 +406,10 @@ __global__ void gpsv_backward_batch_x(const Float *dss, const Float *dll,
     size_t sys_start = tid * t_sys_size;
     size_t ws0       = tid;
     size_t ws1       = tid + t_stride_ws;
-    gpsv_backward_x(dss + sys_start, dll + sys_start, duu + sys_start,
-                    dww + sys_start, x + sys_start, x_top[ws0], x_top[ws1],
-                    xp1[ws0], xp1[ws1], t_sys_size);
+
+    gpsv_backward_x(dss + ws0, dll + ws0, duu + ws0, dww + ws0, x + sys_start,
+                    x_top[ws0], x_top[ws1], xp1[ws0], xp1[ws1], t_stride_ws,
+                    t_sys_size);
   }
 }
 
@@ -530,25 +530,28 @@ void send_rows_to_nodes(pentadsolver_handle_t params, int t_solvedim,
 template <communication_dir_t dir, typename Float>
 void send_rows_to_nodes(pentadsolver_handle_t params, int t_solvedim,
                         int distance, int msg_size, const Float *sndbuf_d,
-                        const Float *sndbuf_h, Float *rcvbufL_d,
-                        Float *rcvbufL_h, Float *rcvbufR_d, Float *rcvbufR_h,
-                        int tag = 1242) {
+                        Float *sndbuf_h, Float *rcvbufL_d, Float *rcvbufL_h,
+                        Float *rcvbufR_d, Float *rcvbufR_h, int tag = 1242) {
   int rank      = params->mpi_coords[t_solvedim];
   int nproc     = params->num_mpi_procs[t_solvedim];
   int leftrank  = rank - distance;
   int rightrank = rank + distance;
   if (leftrank >= 0 || rightrank < nproc) {
-    cudaMemcpy(sndbuf_h, sndbuf_d, msg_size, cudaMemcpyDeviceToHost);
+    cudaMemcpy(sndbuf_h, sndbuf_d, msg_size * sizeof(Float),
+               cudaMemcpyDeviceToHost);
   }
   send_rows_to_nodes<dir, Float>(params, t_solvedim, distance, msg_size,
                                  sndbuf_h, rcvbufL_h, rcvbufR_h, tag);
   if (leftrank >= 0 && (static_cast<unsigned>(dir) &
                         static_cast<unsigned>(communication_dir_t::DOWN))) {
-    cudaMemcpy(rcvbufL_h, rcvbufL_d, msg_size, cudaMemcpyDeviceToHost);
+
+    cudaMemcpy(rcvbufL_d, rcvbufL_h, msg_size * sizeof(Float),
+               cudaMemcpyHostToDevice);
   }
   if (rightrank < nproc && (static_cast<unsigned>(dir) &
                             static_cast<unsigned>(communication_dir_t::UP))) {
-    cudaMemcpy(rcvbufR_h, rcvbufR_d, msg_size, cudaMemcpyDeviceToHost);
+    cudaMemcpy(rcvbufR_d, rcvbufR_h, msg_size * sizeof(Float),
+               cudaMemcpyHostToDevice);
   }
 }
 
@@ -602,17 +605,18 @@ __global__ void eliminate_bottom_row_kernel(int rank, int t_n_sys,
   size_t tid = cooperative_groups::this_grid().thread_rank();
   if (tid < t_n_sys) {
     // buffers use coalesced accessses
-    size_t start_idx = tid;
-    Float *tds       = top_rows + t_n_sys * 0 + start_idx;
-    Float *tdl       = top_rows + t_n_sys * 2 + start_idx;
-    Float *tdu       = top_rows + t_n_sys * 4 + start_idx;
-    Float *tdw       = top_rows + t_n_sys * 6 + start_idx;
-    Float *tx        = top_rows + t_n_sys * 8 + start_idx;
-    Float *rmds      = rmi + t_n_sys * 0 + start_idx;
-    Float *rmdl      = rmi + t_n_sys * 2 + start_idx;
-    Float *rmdu      = rmi + t_n_sys * 4 + start_idx;
-    Float *rmdw      = rmi + t_n_sys * 6 + start_idx;
-    Float *rmx       = rmi + t_n_sys * 8 + start_idx;
+    size_t start_idx  = tid;
+    Float *tds        = top_rows + t_n_sys * 0 + start_idx;
+    Float *tdl        = top_rows + t_n_sys * 2 + start_idx;
+    Float *tdu        = top_rows + t_n_sys * 4 + start_idx;
+    Float *tdw        = top_rows + t_n_sys * 6 + start_idx;
+    Float *tx         = top_rows + t_n_sys * 8 + start_idx;
+    const Float *rmds = rmi + t_n_sys * 0 + start_idx;
+    const Float *rmdl = rmi + t_n_sys * 2 + start_idx;
+    const Float *rmdu = rmi + t_n_sys * 4 + start_idx;
+    const Float *rmdw = rmi + t_n_sys * 6 + start_idx;
+    const Float *rmx  = rmi + t_n_sys * 8 + start_idx;
+
     shift_sl_reduced(rmds, rmdl, rmdu, rmdw, rmx, tds, tdl, tdu, tdw, tx,
                      t_n_sys, rank);
   }
@@ -622,7 +626,7 @@ template <typename Float>
 void eliminate_bottom_rows_from_reduced(pentadsolver_handle_t params,
                                         int t_solvedim, int t_n_sys,
                                         const Float *snd_bottom_buf_d,
-                                        const Float *snd_bottom_buf_h,
+                                        Float *snd_bottom_buf_h,
                                         Float *rcvbuf_d, Float *rcvbuf_h,
                                         Float *top_buf_d, Float *top_buf_h) {
   int rank                   = params->mpi_coords[t_solvedim];
@@ -743,25 +747,24 @@ __global__ void pcr_iteration_kernel(int leftrank, int rightrank, int nproc,
   size_t tid = cooperative_groups::this_grid().thread_rank();
   if (tid < t_n_sys) {
     // buffers use coalesced accessses
-    size_t start_idx = tid;
-    Float *tds       = ri + t_n_sys * 0 + start_idx;
-    Float *tdl       = ri + t_n_sys * 2 + start_idx;
-    Float *tdu       = ri + t_n_sys * 4 + start_idx;
-    Float *tdw       = ri + t_n_sys * 6 + start_idx;
-    Float *tx        = ri + t_n_sys * 8 + start_idx;
-    Float *rmds      = rmi + t_n_sys * 0 + start_idx;
-    Float *rmdl      = rmi + t_n_sys * 2 + start_idx;
-    Float *rmdu      = rmi + t_n_sys * 4 + start_idx;
-    Float *rmdw      = rmi + t_n_sys * 6 + start_idx;
-    Float *rmx       = rmi + t_n_sys * 8 + start_idx;
-    Float *rpds      = rpi + t_n_sys * 0 + start_idx;
-    Float *rpdl      = rpi + t_n_sys * 2 + start_idx;
-    Float *rpdu      = rpi + t_n_sys * 4 + start_idx;
-    Float *rpdw      = rpi + t_n_sys * 6 + start_idx;
-    Float *rpx       = rpi + t_n_sys * 8 + start_idx;
-    shift_sl_reduced(rmds, rmdl, rmdu, rmdw, rmx, tds, tdl, tdu, tdw, tx, rpds,
-                     rpdl, rpdu, rpdw, rpx, t_n_sys, leftrank, rightrank,
-                     nproc);
+    size_t start_idx  = tid;
+    Float *tds        = ri + t_n_sys * 0 + start_idx;
+    Float *tdl        = ri + t_n_sys * 2 + start_idx;
+    Float *tdu        = ri + t_n_sys * 4 + start_idx;
+    Float *tdw        = ri + t_n_sys * 6 + start_idx;
+    Float *tx         = ri + t_n_sys * 8 + start_idx;
+    const Float *rmds = rmi + t_n_sys * 0 + start_idx;
+    const Float *rmdl = rmi + t_n_sys * 2 + start_idx;
+    const Float *rmdu = rmi + t_n_sys * 4 + start_idx;
+    const Float *rmdw = rmi + t_n_sys * 6 + start_idx;
+    const Float *rmx  = rmi + t_n_sys * 8 + start_idx;
+    const Float *rpds = rpi + t_n_sys * 0 + start_idx;
+    const Float *rpdl = rpi + t_n_sys * 2 + start_idx;
+    const Float *rpdu = rpi + t_n_sys * 4 + start_idx;
+    const Float *rpdw = rpi + t_n_sys * 6 + start_idx;
+    const Float *rpx  = rpi + t_n_sys * 8 + start_idx;
+    pcr_iteration(rmds, rmdl, rmdu, rmdw, rmx, tds, tdl, tdu, tdw, tx, rpds,
+                  rpdl, rpdu, rpdw, rpx, t_n_sys, leftrank, rightrank, nproc);
   }
 }
 // Solve reduced system with PCR algorithm.
@@ -838,7 +841,7 @@ void pentadsolver_gpsv_batch(pentadsolver_handle_t params, const Float *ds,
   solve_reduced_pcr(params, rcvbuf_d, sndbuf_d, rcvbuf_h, sndbuf_h, t_solvedim,
                     n_sys);
   // solve_reduced_jacobi(handle, rcvbuf, sndbuf, t_solvedim, n_sys);
-  gpsv_batched_backward(dss, dll, duu, dww, x, sndbuf_d,
+  gpsv_batched_backward(dss, dll, duu, dww, x, sndbuf_d + 2 * 4 * n_sys,
                         rcvbuf_d + reduced_size_elem * n_sys, t_dims, t_ndims,
                         n_sys, t_solvedim);
 }
