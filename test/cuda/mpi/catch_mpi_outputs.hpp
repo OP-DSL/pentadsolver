@@ -16,4 +16,3 @@ inline std::ostream &clog() { return catch_mpi_outputs::clog; }
 } // namespace Catch
 
 #endif /* end of include guard: CATCH_MPI_OUTPUTS_HPP_MV2GTGJR */
-

@@ -1,11 +1,11 @@
 #define CATCH_CONFIG_RUNNER
 #define CATCH_CONFIG_NOSTDOUT
-#include <mpi.h>             // for MPI_COMM_WORLD, MPI_Abort, MPI_Barrier
-#include <cstdio>            // for printf
-#include <catch2/catch.hpp>  // for Session
-#include <cstdlib>           // for srand
-#include <iostream>          // for operator<<, basic_ostream, basic_ostream...
-#include <string>            // for operator<<, char_traits, basic_string
+#include <mpi.h>            // for MPI_COMM_WORLD, MPI_Abort, MPI_Barrier
+#include <cstdio>           // for printf
+#include <catch2/catch.hpp> // for Session
+#include <cstdlib>          // for srand
+#include <iostream>         // for operator<<, basic_ostream, basic_ostream...
+#include <string>           // for operator<<, char_traits, basic_string
 #include "catch_mpi_outputs.hpp"
 
 // New cerr/cout/clog to separate the outputs of the different processes
