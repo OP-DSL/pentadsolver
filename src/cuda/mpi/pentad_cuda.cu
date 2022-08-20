@@ -818,6 +818,134 @@ inline void solve_reduced_pcr(pentadsolver_handle_t params, Float *rcvbuf_d,
 }
 
 template <typename Float>
+__device__ void jacobi_iteration(const Float *rmx, const Float *s,
+                                 const Float *l, const Float *u, const Float *w,
+                                 const Float *xx,
+                                 Float *x_cur, // Float *x_prev,
+                                 const Float *rpx, size_t t_stride,
+                                 int leftrank, int rightrank, int nproc) {
+  // x_prev[0]        = x_cur[0];
+  // x_prev[t_stride] = x_cur[t_stride];
+  x_cur[0]        = xx[0];
+  x_cur[t_stride] = xx[t_stride];
+  if (rightrank < nproc) {
+    Float xp1 = rpx[0];
+    Float xp2 = rpx[t_stride];
+    x_cur[0] -= u[0] * xp1 + w[0] * xp2;
+    x_cur[t_stride] -= u[t_stride] * xp1 + w[t_stride] * xp2;
+  }
+  if (leftrank >= 0) {
+    Float xm2 = rmx[0];
+    Float xm1 = rmx[t_stride];
+    x_cur[0] -= s[0] * xm2 + l[0] * xm1;
+    x_cur[t_stride] -= s[t_stride] * xm2 + l[t_stride] * xm1;
+  }
+}
+template <typename Float>
+__global__ void jacobi_iteration_kernel(int leftrank, int rightrank, int nproc,
+                                        int t_n_sys, const Float *rpi,
+                                        const Float *rmi, const Float *ri,
+                                        Float *x_cur) {
+  size_t tid = cooperative_groups::this_grid().thread_rank();
+  if (tid < t_n_sys) {
+    // buffers use coalesced accessses
+    size_t start_idx = tid;
+    const Float *tds = ri + t_n_sys * 0 + start_idx;
+    const Float *tdl = ri + t_n_sys * 2 + start_idx;
+    const Float *tdu = ri + t_n_sys * 4 + start_idx;
+    const Float *tdw = ri + t_n_sys * 6 + start_idx;
+    const Float *tx  = ri + t_n_sys * 8 + start_idx;
+    Float *x         = x_cur + start_idx;
+    const Float *rmx = rmi + start_idx;
+    const Float *rpx = rpi + start_idx;
+    jacobi_iteration(rmx, tds, tdl, tdu, tdw, tx, x_cur, rpx, t_n_sys, leftrank,
+                     rightrank, nproc);
+  }
+}
+
+template <typename Float>
+inline void solve_reduced_jacobi(pentadsolver_handle_t params, Float *rcvbuf_d,
+                                 Float *sndbuf_d, Float *rcvbuf_h,
+                                 Float *sndbuf_h, int t_solvedim, int t_n_sys) {
+  int rank                  = params->mpi_coords[t_solvedim];
+  int nproc                 = params->num_mpi_procs[t_solvedim];
+  constexpr int block_dim_x = 128;
+  int nblocks               = 1 + (static_cast<int>(t_n_sys) - 1) / block_dim_x;
+  constexpr int nvar_per_sys = 10;
+  Float *rcvbufL_h           = rcvbuf_h;
+  Float *rcvbufL_d           = rcvbuf_d;
+  // eliminate_bottom_rows require whole systems in messages
+  Float *rcvbufR_h = rcvbuf_h + t_n_sys * nvar_per_sys;
+  Float *rcvbufR_d = rcvbuf_d + t_n_sys * nvar_per_sys;
+
+  // eliminate 2 rows from reduced system
+  eliminate_bottom_rows_from_reduced(params, t_solvedim, t_n_sys, rcvbufL_d,
+                                     rcvbufL_h, rcvbufR_d, rcvbufR_h, sndbuf_d,
+                                     sndbuf_h);
+  Float *x_cur_h  = rcvbuf_h;
+  Float *x_prev_h = x_cur_h + 2 * t_n_sys;
+  rcvbufL_h       = x_prev_h + 2 * t_n_sys;
+  rcvbufR_h       = rcvbufL_h + 2 * t_n_sys;
+  Float *x_cur_d  = rcvbuf_d;
+  Float *x_prev_d = x_cur_d + 2 * t_n_sys;
+  rcvbufL_d       = x_prev_d + 2 * t_n_sys;
+  rcvbufR_d       = rcvbufL_d + 2 * t_n_sys;
+
+  int iter                     = 0;
+  constexpr int max_iter       = 100;   // TODO move to params
+  constexpr double jacobi_atol = 1e-12; // TODO move to params
+  constexpr double jacobi_rtol = 1e-11; // TODO move to params
+  MPI_Request norm_req         = MPI_REQUEST_NULL;
+
+  double local_norm       = -1;
+  double local_norm_send  = -1;
+  double global_norm0     = -1;
+  double global_norm_recv = -1;
+  bool need_iter          = true;
+
+  do {
+    send_rows_to_nodes<communication_dir_t::ALL, Float>(
+        params, t_solvedim, 1, t_n_sys * nvar_per_sys, sndbuf_d, sndbuf_h,
+        rcvbufL_d, rcvbufL_h, rcvbufR_d, rcvbufR_h);
+    // kernel
+    jacobi_iteration_kernel<<<block_dim_x, nblocks>>>(
+        rank - 1, rank + 1, nproc, t_n_sys, rcvbufR_d, rcvbufL_d, sndbuf_d,
+        x_cur_d);
+
+    // Error norm
+    // if (iter > 0) { // skip until the first sum is ready
+    //   MPI_Waitall(1, &norm_req, MPI_STATUS_IGNORE);
+    //   norm_req         = MPI_REQUEST_NULL;
+    //   global_norm_recv = sqrt(global_norm_recv / 2 * nproc);
+    //   if (global_norm0 < 0) {
+    //     global_norm0 = global_norm_recv;
+    //   }
+    // }
+    // local_norm_send = local_norm;
+    // need_iter       = iter == 0 || (jacobi_atol < global_norm_recv &&
+    //                           jacobi_rtol < global_norm_recv / global_norm0);
+    // if (iter + 1 < max_iter && need_iter) {
+    //   MPI_Iallreduce(&local_norm_send, &global_norm_recv, 1, MPI_DOUBLE,
+    //                  MPI_SUM, params->communicators[t_solvedim], &norm_req);
+    // }
+  } while (++iter < max_iter && need_iter);
+
+  cudaMemcpy(sndbuf_d + t_n_sys * 2 * 4, x_cur_d, t_n_sys * 2 * sizeof(Float),
+             cudaMemcpyDeviceToDevice);
+
+  rcvbufR_h = rcvbuf_h + t_n_sys * nvar_per_sys;
+  rcvbufR_d = rcvbuf_d + t_n_sys * nvar_per_sys;
+  // send solution to rank - 1 (left/UP)
+  send_rows_to_nodes<communication_dir_t::UP, Float>(
+      params, t_solvedim, 1, t_n_sys * 2, x_cur_d, sndbuf_h, nullptr, nullptr,
+      rcvbufR_d, rcvbufR_h);
+}
+
+// ----------------------------------------------------------------------------
+// Solver function
+// ----------------------------------------------------------------------------
+
+template <typename Float>
 void pentadsolver_gpsv_batch(pentadsolver_handle_t params, const Float *ds,
                              const Float *dl, const Float *d, const Float *du,
                              const Float *dw, Float *x, const int *t_dims,
@@ -840,7 +968,8 @@ void pentadsolver_gpsv_batch(pentadsolver_handle_t params, const Float *ds,
                        rcvbuf_d, t_dims, t_ndims, n_sys, t_solvedim);
   solve_reduced_pcr(params, rcvbuf_d, sndbuf_d, rcvbuf_h, sndbuf_h, t_solvedim,
                     n_sys);
-  // solve_reduced_jacobi(handle, rcvbuf, sndbuf, t_solvedim, n_sys);
+  // solve_reduced_jacobi(params, rcvbuf_d, sndbuf_d, rcvbuf_h, sndbuf_h,
+  //                      t_solvedim, n_sys);
   gpsv_batched_backward(dss, dll, duu, dww, x, sndbuf_d + 2 * 4 * n_sys,
                         rcvbuf_d + reduced_size_elem * n_sys, t_dims, t_ndims,
                         n_sys, t_solvedim);

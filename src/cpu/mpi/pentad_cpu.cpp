@@ -718,11 +718,7 @@ inline void solve_reduced_jacobi(pentadsolver_handle_t params, Float *rcvbuf,
   do {
     send_rows_to_nodes<communication_dir_t::ALL, Float>(
         params, t_solvedim, 1, t_n_sys * 2, x_cur, rcvbufL, rcvbufR);
-    // NORMCOM start
 
-    // update
-    // NORMCOM end?
-// TODO norm calculation and hide latency of the above
 #pragma omp parallel for
     for (size_t id = 0; id < t_n_sys; ++id) {
       // x_0 = (d_0 - s_{0} * x_{-2} - l_{0} * x_{-1} - u_{0} * x_{1} - w_{0} *
@@ -751,7 +747,7 @@ inline void solve_reduced_jacobi(pentadsolver_handle_t params, Float *rcvbuf,
     }
 
     local_norm = 0;
-    // #pragma omp parallel for reduction(max : local_norm)
+#pragma omp parallel for reduction(max : local_norm)
     for (size_t i = 0; i < 2UL * t_n_sys; ++i) {
       double diff0 = x_prev[i] - x_cur[i];
       local_norm   = std::max(local_norm, diff0 * diff0);
