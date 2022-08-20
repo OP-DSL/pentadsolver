@@ -81,34 +81,34 @@ void run_solver(pentadsolver_handle_t handle, MyMesh<Float> &mesh,
 
   size_t workspace_size_h = 0;
   size_t workspace_size_d = 0;
-  pentadsolver_gpsv_batch_buffer_size_ext(handle,               // context
-                                          mesh.ds_d(),          // ds
-                                          mesh.dl_d(),          // dl
-                                          mesh.d_d(),           // d
-                                          mesh.du_d(),          // du
-                                          mesh.dw_d(),          // dw
-                                          mesh.x_d(),           // x
-                                          local_sizes.data(),   // t_dims
-                                          mesh_h.dims().size(), // t_ndims
-                                          mesh_h.solve_dim(),   // t_solvedim
+  pentadsolver_gpsv_batch_buffer_size_ext(handle,             // context
+                                          mesh.ds_d(),        // ds
+                                          mesh.dl_d(),        // dl
+                                          mesh.d_d(),         // d
+                                          mesh.du_d(),        // du
+                                          mesh.dw_d(),        // dw
+                                          mesh.x_d(),         // x
+                                          mesh.dims().data(), // t_dims
+                                          mesh.dims().size(), // t_ndims
+                                          mesh.solve_dim(),   // t_solvedim
                                           &workspace_size_h, &workspace_size_d);
   std::vector<char> buffer(workspace_size_h, 0);
   void *workspace_d = nullptr;
   cudaMalloc(&workspace_d, workspace_size_d);
 
   // Dry run
-  pentadsolver_gpsv_batch(handle,               // context
-                          mesh.ds_d(),          // ds
-                          mesh.dl_d(),          // dl
-                          mesh.d_d(),           // d
-                          mesh.du_d(),          // du
-                          mesh.dw_d(),          // dw
-                          mesh.x_d(),           // x
-                          local_sizes.data(),   // t_dims
-                          mesh_h.dims().size(), // t_ndims
-                          mesh_h.solve_dim(),   // t_solvedim
-                          buffer.data(),        // t_buffer_h
-                          workspace_d);         // t_buffer_d
+  pentadsolver_gpsv_batch(handle,             // context
+                          mesh.ds_d(),        // ds
+                          mesh.dl_d(),        // dl
+                          mesh.d_d(),         // d
+                          mesh.du_d(),        // du
+                          mesh.dw_d(),        // dw
+                          mesh.x_d(),         // x
+                          mesh.dims().data(), // t_dims
+                          mesh.dims().size(), // t_ndims
+                          mesh.solve_dim(),   // t_solvedim
+                          buffer.data(),      // t_buffer_h
+                          workspace_d);       // t_buffer_d
   cudaMemcpy(mesh.x_d(), mesh.x().data(), sizeof(Float) * mesh.x().size(),
              cudaMemcpyHostToDevice);
   handle->total_sec    = 0.0;
@@ -118,18 +118,18 @@ void run_solver(pentadsolver_handle_t handle, MyMesh<Float> &mesh,
   // Solve the equations
   MPI_Barrier(MPI_COMM_WORLD);
   while (num_iters--) {
-    pentadsolver_gpsv_batch(handle,               // context
-                            mesh.ds_d(),          // ds
-                            mesh.dl_d(),          // dl
-                            mesh.d_d(),           // d
-                            mesh.du_d(),          // du
-                            mesh.dw_d(),          // dw
-                            mesh.x_d(),           // x
-                            local_sizes.data(),   // t_dims
-                            mesh_h.dims().size(), // t_ndims
-                            mesh_h.solve_dim(),   // t_solvedim
-                            buffer.data(),        // t_buffer_h
-                            workspace_d);         // t_buffer_d
+    pentadsolver_gpsv_batch(handle,             // context
+                            mesh.ds_d(),        // ds
+                            mesh.dl_d(),        // dl
+                            mesh.d_d(),         // d
+                            mesh.du_d(),        // du
+                            mesh.dw_d(),        // dw
+                            mesh.x_d(),         // x
+                            mesh.dims().data(), // t_dims
+                            mesh.dims().size(), // t_ndims
+                            mesh.solve_dim(),   // t_solvedim
+                            buffer.data(),      // t_buffer_h
+                            workspace_d);       // t_buffer_d
     cudaMemcpy(mesh.x_d(), mesh.x().data(), sizeof(Float) * mesh.x().size(),
                cudaMemcpyHostToDevice);
     MPI_Barrier(MPI_COMM_WORLD);
