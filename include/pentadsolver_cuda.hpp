@@ -58,29 +58,36 @@ void pentadsolver_destroy(pentadsolver_handle_t *handle);
  * @param[in] t_dims      The dimensions of the LHS arrays.
  * @param[in] t_ndims     The length of the t_dims array.
  * @param[in] t_solvedim  The dimension along which the systems are formed.
+ * @param[inout] t_workspace_in_bytes_host    On output contains the size in
+ * bytes of the local workspace required by pentadsolver_X_gpsv_batch().
+ * @param[inout] t_workspace_in_bytes_device  On output contains the size in
+ * bytes of the local workspace required by pentadsolver_X_gpsv_batch().
  *
- * @return size of required buffers in bytes.
  */
 EXTERN_C
-[[nodiscard]] size_t pentadsolver_D_gpsv_batch_buffer_size_ext(
+void pentadsolver_D_gpsv_batch_buffer_size_ext(
     pentadsolver_handle_t handle, const double *ds, const double *dl,
     const double *d, const double *du, const double *dw, const double *x,
-    const int *t_dims, int t_ndim, int t_solvedim);
+    const int *t_dims, int t_ndim, int t_solvedim,
+    size_t *t_workspace_in_bytes_host, size_t *t_workspace_in_bytes_device);
 EXTERN_C
-[[nodiscard]] size_t pentadsolver_S_gpsv_batch_buffer_size_ext(
+void pentadsolver_S_gpsv_batch_buffer_size_ext(
     pentadsolver_handle_t handle, const float *ds, const float *dl,
     const float *d, const float *du, const float *dw, const float *x,
-    const int *t_dims, int t_ndim, int t_solvedim);
+    const int *t_dims, int t_ndim, int t_solvedim,
+    size_t *t_workspace_in_bytes_host, size_t *t_workspace_in_bytes_device);
 
 #ifdef __cplusplus
-[[nodiscard]] size_t pentadsolver_gpsv_batch_buffer_size_ext(
+void pentadsolver_gpsv_batch_buffer_size_ext(
     pentadsolver_handle_t handle, const double *ds, const double *dl,
     const double *d, const double *du, const double *dw, const double *x,
-    const int *t_dims, int t_ndim, int t_solvedim);
-[[nodiscard]] size_t pentadsolver_gpsv_batch_buffer_size_ext(
+    const int *t_dims, int t_ndim, int t_solvedim,
+    size_t *t_workspace_in_bytes_host, size_t *t_workspace_in_bytes_device);
+void pentadsolver_gpsv_batch_buffer_size_ext(
     pentadsolver_handle_t handle, const float *ds, const float *dl,
     const float *d, const float *du, const float *dw, const float *x,
-    const int *t_dims, int t_ndim, int t_solvedim);
+    const int *t_dims, int t_ndim, int t_solvedim,
+    size_t *t_workspace_in_bytes_host, size_t *t_workspace_in_bytes_device);
 #endif
 // ----------------------------------------------------------------------------
 // Solver functions
@@ -100,7 +107,9 @@ EXTERN_C
  * @param[in] t_dims      The dimensions of the LHS arrays.
  * @param[in] t_ndims     The length of the t_dims array.
  * @param[in] t_solvedim  The dimension along which the systems are formed.
- * @param[in] t_buffer  Buffer allocated by the user, with size at least
+ * @param[in] t_buffer_h  Buffer allocated by the user, with size at least
+ * pentadsolver_D_gpsv_batch_buffer_size_ext()
+ * @param[in] t_buffer_d  Buffer allocated by the user, with size at least
  * pentadsolver_D_gpsv_batch_buffer_size_ext()
  *
  */
@@ -109,25 +118,27 @@ void pentadsolver_D_gpsv_batch(pentadsolver_handle_t handle, const double *ds,
                                const double *dl, const double *d,
                                const double *du, const double *dw, double *x,
                                const int *t_dims, int t_ndim, int t_solvedim,
-                               void *t_buffer);
+                               void *t_buffer_h, void *t_buffer_d);
 
 EXTERN_C
 void pentadsolver_S_gpsv_batch(pentadsolver_handle_t handle, const float *ds,
                                const float *dl, const float *d, const float *du,
                                const float *dw, float *x, const int *t_dims,
-                               int t_ndim, int t_solvedim, void *t_buffer);
+                               int t_ndim, int t_solvedim, void *t_buffer_h,
+                               void *t_buffer_d);
 
 #ifdef __cplusplus
 void pentadsolver_gpsv_batch(pentadsolver_handle_t handle, const double *ds,
                              const double *dl, const double *d,
                              const double *du, const double *dw, double *x,
                              const int *t_dims, int t_ndim, int t_solvedim,
-                             void *t_buffer);
+                             void *t_buffer_h, void *t_buffer_d);
 
 void pentadsolver_gpsv_batch(pentadsolver_handle_t handle, const float *ds,
                              const float *dl, const float *d, const float *du,
                              const float *dw, float *x, const int *t_dims,
-                             int t_ndim, int t_solvedim, void *t_buffer);
+                             int t_ndim, int t_solvedim, void *t_buffer_h,
+                             void *t_buffer_d);
 #endif
 
 #endif /* ifndef PENTADSOLVER_HPP_INCLUDED */

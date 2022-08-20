@@ -26,4 +26,24 @@ void require_allclose(const std::vector<Float> &expected,
   }
 }
 
+template <typename Float>
+void copy_strided(const std::vector<Float> &src, std::vector<Float> &dest,
+                  const std::vector<int> &local_sizes,
+                  const std::vector<int> &offsets,
+                  const std::vector<int> &global_strides, size_t dim,
+                  int global_offset = 0) {
+  if (dim == 0) {
+    for (int i = 0; i < local_sizes[dim]; ++i) {
+      dest.push_back(src[global_offset + offsets[dim] + i]);
+    }
+  } else {
+    for (int i = 0; i < local_sizes[dim]; ++i) {
+      const int new_global_offset =
+          global_offset + (offsets[dim] + i) * global_strides[dim];
+      copy_strided(src, dest, local_sizes, offsets, global_strides, dim - 1,
+                   new_global_offset);
+    }
+  }
+}
+
 #endif /* ifndef CATCH_UTILS_HPP_INCLUDED */
