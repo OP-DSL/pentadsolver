@@ -1,6 +1,7 @@
 #include <cooperative_groups.h> // for this_grid, grid_group
 #include <cassert>              // for assert
-#include <chrono>
+// #include <chrono>
+#include <sys/time.h>
 #include <cstddef>               // for size_t
 #include <functional>            // for multiplies
 #include <numeric>               // for accumulate
@@ -953,9 +954,17 @@ void pentadsolver_gpsv_batch(pentadsolver_handle_t params, const Float *ds,
                              size_t t_ndims, int t_solvedim, void *t_buffer_h,
                              void *t_buffer_d) {
   // profiling code
-  using clock      = std::chrono::high_resolution_clock;
-  using time_point = clock::time_point;
-  auto t0          = clock::now();
+  // using clock      = std::chrono::high_resolution_clock;
+  // using time_point = clock::time_point;
+  // auto t0          = clock::now();
+  auto now = []() {
+    struct timeval t;
+
+    gettimeofday(&t, (struct timezone *)0);
+    return t.tv_sec + t.tv_usec * 1.0e-6;
+  };
+  double t0 = now();
+
   size_t buff_size =
       std::accumulate(t_dims, t_dims + t_ndims, 1, std::multiplies<>());
   size_t n_sys = buff_size / t_dims[t_solvedim];
@@ -968,34 +977,42 @@ void pentadsolver_gpsv_batch(pentadsolver_handle_t params, const Float *ds,
   Float *rcvbuf_d                 = sndbuf_d + n_sys * reduced_size_elem;
   auto *sndbuf_h                  = reinterpret_cast<Float *>(t_buffer_h);
   Float *rcvbuf_h                 = sndbuf_h + n_sys * reduced_size_elem;
-  auto t1                         = clock::now();
+  // auto t1                         = clock::now();
+  double t1 = now();
   gpsv_batched_forward(ds, dl, d, du, dw, x, dss, dll, duu, dww, sndbuf_d,
                        rcvbuf_d, t_dims, t_ndims, n_sys, t_solvedim);
   cudaDeviceSynchronize();
-  auto t2 = clock::now();
+  // auto t2 = clock::now();
+  double t2 = now();
   solve_reduced_pcr(params, rcvbuf_d, sndbuf_d, rcvbuf_h, sndbuf_h, t_solvedim,
                     n_sys);
   // solve_reduced_jacobi(params, rcvbuf_d, sndbuf_d, rcvbuf_h, sndbuf_h,
   //                      t_solvedim, n_sys);
   cudaDeviceSynchronize();
-  auto t3 = clock::now();
+  // auto t3 = clock::now();
+  double t3 = now();
   gpsv_batched_backward(dss, dll, duu, dww, x, sndbuf_d + 2 * 4 * n_sys,
                         rcvbuf_d + reduced_size_elem * n_sys, t_dims, t_ndims,
                         n_sys, t_solvedim);
   cudaDeviceSynchronize();
-  auto t4 = clock::now();
-  params->total_sec +=
-      std::chrono::duration_cast<std::chrono::duration<double>>(t4 - t0)
-          .count();
-  params->forward_sec +=
-      std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1)
-          .count();
-  params->reduced_sec +=
-      std::chrono::duration_cast<std::chrono::duration<double>>(t3 - t2)
-          .count();
-  params->backward_sec +=
-      std::chrono::duration_cast<std::chrono::duration<double>>(t4 - t3)
-          .count();
+  // auto t4 = clock::now();
+  double t4 = now();
+  params->total_sec += t4 - t0;
+  params->forward_sec += t2 - t1;
+  params->reduced_sec += t3 - t2;
+  params->backward_sec += t4 - t3;
+  // params->total_sec +=
+  //     std::chrono::duration_cast<std::chrono::duration<double>>(t4 - t0)
+  //         .count();
+  // params->forward_sec +=
+  //     std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1)
+  //         .count();
+  // params->reduced_sec +=
+  //     std::chrono::duration_cast<std::chrono::duration<double>>(t3 - t2)
+  //         .count();
+  // params->backward_sec +=
+  //     std::chrono::duration_cast<std::chrono::duration<double>>(t4 - t3)
+  //         .count();
 }
 
 // ----------------------------------------------------------------------------
