@@ -859,7 +859,7 @@ __global__ void jacobi_iteration_kernel(int leftrank, int rightrank, int nproc,
     Float *x         = x_cur + start_idx;
     const Float *rmx = rmi + start_idx;
     const Float *rpx = rpi + start_idx;
-    jacobi_iteration(rmx, tds, tdl, tdu, tdw, tx, x_cur, rpx, t_n_sys, leftrank,
+    jacobi_iteration(rmx, tds, tdl, tdu, tdw, tx, x, rpx, t_n_sys, leftrank,
                      rightrank, nproc);
   }
 }
