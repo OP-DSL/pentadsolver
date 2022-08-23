@@ -4,6 +4,7 @@
 #include <functional>           // for multiplies
 #include <numeric>              // for accumulate
 #include "pentadsolver.hpp"     // for pentadsolver_gpsv_batch
+#include "util/cuda_util.hpp"
 
 template <typename Float>
 __device__ void
@@ -84,6 +85,7 @@ void pentadsolver_batch_x(const Float *ds, const Float *dl, const Float *d,
 
   pentadsolver_batch_x_kernel<<<block_dim_x, nblocks>>>(ds, dl, d, du, dw, x,
                                                         t_n_sys, t_sys_size);
+  CHECK_CUDA(cudaPeekAtLastError()); //NOLINT
 }
 
 template <typename Float>
@@ -188,6 +190,7 @@ void pentadsolver_batch_outermost(const Float *__restrict__ ds,
   int nblocks               = 1 + (static_cast<int>(t_n_sys) - 1) / block_dim_x;
   pentadsolver_batch_outermost_kernel<<<block_dim_x, nblocks>>>(
       ds, dl, d, du, dw, x, t_n_sys, t_sys_size);
+  CHECK_CUDA(cudaPeekAtLastError()); //NOLINT
 }
 
 template <typename Float>
@@ -206,6 +209,7 @@ void pentadsolver_batch_middle(const Float *__restrict__ ds,
       1 + (static_cast<int>(t_n_sys_in * t_n_sys_out) - 1) / block_dim_x;
   pentadsolver_batch_middle_kernel<<<block_dim_x, nblocks>>>(
       ds, dl, d, du, dw, x, t_n_sys_in, t_sys_size, t_n_sys_out);
+  CHECK_CUDA(cudaPeekAtLastError()); //NOLINT
 }
 
 template <typename Float>

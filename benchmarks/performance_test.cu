@@ -1,6 +1,6 @@
 #include <array>
 #include <cctype>
-#include <chrono>
+// #include <chrono>
 #include <iostream>
 #include <map>
 #include <string>
@@ -165,7 +165,7 @@ void print_local_sizes(int rank, int num_proc, const int *mpi_dims,
   }
 #else
     }
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    // std::this_thread::sleep_for(std::chrono::milliseconds(50));
     MPI_Barrier(MPI_COMM_WORLD);
   }
 #endif
