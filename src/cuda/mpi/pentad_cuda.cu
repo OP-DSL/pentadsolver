@@ -898,7 +898,7 @@ inline void solve_reduced_jacobi(pentadsolver_handle_t params, Float *rcvbuf_d,
   rcvbufR_d       = rcvbufL_d + 2 * t_n_sys;
 
   int iter                     = 0;
-  constexpr int max_iter       = 100;   // TODO move to params
+  constexpr int max_iter       = 10;    // TODO move to params
   constexpr double jacobi_atol = 1e-12; // TODO move to params
   constexpr double jacobi_rtol = 1e-11; // TODO move to params
   MPI_Request norm_req         = MPI_REQUEST_NULL;
