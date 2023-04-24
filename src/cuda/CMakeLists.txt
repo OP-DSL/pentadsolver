@@ -11,6 +11,10 @@ target_include_directories(cuda PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/i
                                        $<INSTALL_INTERFACE:${PROJECT_NAME}/include>)
 
 if(BUILD_FOR_MPI)
+  set(CUDA_COMMUNICATION_LIBRARY
+      "MPI"
+      CACHE STRING "Communication options")
+  set_property(CACHE CUDA_COMMUNICATION_LIBRARY PROPERTY STRINGS MPI CUDA_AWARE_MPI)
   find_package(MPI REQUIRED)
 
   add_library(cuda_mpi_handle ../cpu/mpi/pentadsolver_handle.cpp)
@@ -37,6 +41,22 @@ if(BUILD_FOR_MPI)
     PUBLIC MPI::MPI_CXX)
 
   target_compile_definitions(mpi_cuda PUBLIC PENTADSOLVER_MPI)
+  if(CUDA_COMMUNICATION_LIBRARY STREQUAL "CUDA_AWARE_MPI")
+    target_compile_definitions(mpi_cuda PRIVATE PENTADSOLVER_CUDA_AWARE_MPI)
+  elseif(
+    NOT
+    CUDA_COMMUNICATION_LIBRARY
+    STREQUAL
+    "MPI")
+    get_property(
+      COMM_MODES
+      CACHE CUDA_COMMUNICATION_LIBRARY
+      PROPERTY STRINGS)
+    message(
+      FATAL_ERROR
+        "Unknown communication mode for CUDA: ${CUDA_COMMUNICATION_LIBRARY}. CUDA_COMMUNICATION_LIBRARY must be one of the folowing: ${COMM_MODES}"
+    )
+  endif()
 
   target_include_directories(mpi_cuda PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
                                              $<INSTALL_INTERFACE:${PROJECT_NAME}/include>)

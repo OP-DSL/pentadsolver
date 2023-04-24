@@ -537,6 +537,10 @@ void send_rows_to_nodes(pentadsolver_handle_t params, int t_solvedim,
                         int distance, int msg_size, const Float *sndbuf_d,
                         Float *sndbuf_h, Float *rcvbufL_d, Float *rcvbufL_h,
                         Float *rcvbufR_d, Float *rcvbufR_h, int tag = 1242) {
+#ifdef PENTADSOLVER_CUDA_AWARE_MPI
+  send_rows_to_nodes<dir, Float>(params, t_solvedim, distance, msg_size,
+                                 sndbuf_d, rcvbufL_d, rcvbufR_d, tag);
+#else
   int rank      = params->mpi_coords[t_solvedim];
   int nproc     = params->num_mpi_procs[t_solvedim];
   int leftrank  = rank - distance;
@@ -558,6 +562,7 @@ void send_rows_to_nodes(pentadsolver_handle_t params, int t_solvedim,
     cudaMemcpy(rcvbufR_d, rcvbufR_h, msg_size * sizeof(Float),
                cudaMemcpyHostToDevice);
   }
+#endif
 }
 
 template <typename Float>
