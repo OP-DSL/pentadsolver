@@ -4,6 +4,7 @@
 #include <functional>           // for multiplies
 #include <numeric>              // for accumulate
 #include "pentadsolver.hpp"     // for pentadsolver_gpsv_batch
+#include "util/cuda_util.hpp"
 
 template <typename Float>
 __device__ void
@@ -82,8 +83,9 @@ void pentadsolver_batch_x(const Float *ds, const Float *dl, const Float *d,
   constexpr int block_dim_x = 128;
   int nblocks               = 1 + (static_cast<int>(t_n_sys) - 1) / block_dim_x;
 
-  pentadsolver_batch_x_kernel<<<block_dim_x, nblocks>>>(ds, dl, d, du, dw, x,
+  pentadsolver_batch_x_kernel<<<nblocks, block_dim_x>>>(ds, dl, d, du, dw, x,
                                                         t_n_sys, t_sys_size);
+  CHECK_CUDA(cudaPeekAtLastError()); // NOLINT
 }
 
 template <typename Float>
@@ -186,8 +188,9 @@ void pentadsolver_batch_outermost(const Float *__restrict__ ds,
   // Set up the execution configuration
   constexpr int block_dim_x = 128;
   int nblocks               = 1 + (static_cast<int>(t_n_sys) - 1) / block_dim_x;
-  pentadsolver_batch_outermost_kernel<<<block_dim_x, nblocks>>>(
+  pentadsolver_batch_outermost_kernel<<<nblocks, block_dim_x>>>(
       ds, dl, d, du, dw, x, t_n_sys, t_sys_size);
+  CHECK_CUDA(cudaPeekAtLastError()); // NOLINT
 }
 
 template <typename Float>
@@ -204,8 +207,9 @@ void pentadsolver_batch_middle(const Float *__restrict__ ds,
   constexpr int block_dim_x = 128;
   int nblocks =
       1 + (static_cast<int>(t_n_sys_in * t_n_sys_out) - 1) / block_dim_x;
-  pentadsolver_batch_middle_kernel<<<block_dim_x, nblocks>>>(
+  pentadsolver_batch_middle_kernel<<<nblocks, block_dim_x>>>(
       ds, dl, d, du, dw, x, t_n_sys_in, t_sys_size, t_n_sys_out);
+  CHECK_CUDA(cudaPeekAtLastError()); // NOLINT
 }
 
 template <typename Float>
