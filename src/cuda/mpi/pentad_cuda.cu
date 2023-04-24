@@ -1,13 +1,15 @@
-#include <cooperative_groups.h>  // for this_grid, grid_group
-#include <cassert>               // for assert
+#include <cooperative_groups.h> // for this_grid, grid_group
+#include <cassert>              // for assert
+#include <chrono>
 #include <cstddef>               // for size_t
 #include <functional>            // for multiplies
 #include <numeric>               // for accumulate
 #include "pentadsolver_cuda.hpp" // for pentadsolver_gpsv_batch
+#include "util/cuda_util.hpp"
 
 namespace {
 template <typename REAL>
-const MPI_Datatype mpi_datatype =
+const MPI_Datatype mpi_datatype = // NOLINT
     std::is_same<REAL, double>::value ? MPI_DOUBLE : MPI_FLOAT;
 enum class communication_dir_t { DOWN = 1, UP = 2, ALL = 3 };
 } // namespace
@@ -111,8 +113,8 @@ gpsv_forward_x(const Float *__restrict__ ds, const Float *__restrict__ dl,
   constexpr int n_row_nonzeros = 6;
   // So we add a temp value to the line and shift it like row 1 until the end
   // Finally we will shift du as well and add back ds[0]
-  Float r0[n_row_nonzeros] = {dl[0], d[0], du[0], dw[0], 0, x[0]};
-  Float r1[n_row_nonzeros] = {ds[1], dl[1], d[1], du[1], dw[1], x[1]};
+  Float r0[n_row_nonzeros] = {dl[0], d[0], du[0], dw[0], 0, x[0]};     // NOLINT
+  Float r1[n_row_nonzeros] = {ds[1], dl[1], d[1], du[1], dw[1], x[1]}; // NOLINT
   // row 2 - normalise -- 0
   x[2]                 = x[2] / d[2];
   dss[2 * t_stride_ws] = ds[2] / d[2];
@@ -181,8 +183,8 @@ gpsv_forward_strided(const Float *__restrict__ ds, const Float *__restrict__ dl,
   constexpr int n_row_nonzeros = 6;
   // So we add a temp value to the line and shift it like row 1 until the end
   // Finally we will shift du as well and add back ds[0]
-  Float r0[n_row_nonzeros] = {dl[0], d[0], du[0], dw[0], 0, x[0]};
-  Float r1[n_row_nonzeros] = {ds[t_stride], dl[t_stride], d[t_stride],
+  Float r0[n_row_nonzeros] = {dl[0], d[0], du[0], dw[0], 0, x[0]};     // NOLINT
+  Float r1[n_row_nonzeros] = {ds[t_stride], dl[t_stride], d[t_stride], // NOLINT
                               du[t_stride], dw[t_stride], x[t_stride]};
   // row 2 - normalise -- 0
   x[2 * t_stride]      = x[2 * t_stride] / d[2 * t_stride];
@@ -293,9 +295,9 @@ __global__ void gpsv_forward_batch_middle_kernel(
   size_t tid     = cooperative_groups::this_grid().thread_rank();
   size_t t_n_sys = t_n_sys_in * t_n_sys_out;
   if (tid < t_n_sys) {
-    int page_idx     = tid / t_n_sys_in;
-    int sys_in_page  = tid % t_n_sys_in;
-    size_t start_idx = page_idx * t_n_sys_in * t_sys_size + sys_in_page;
+    size_t page_idx    = tid / t_n_sys_in;
+    size_t sys_in_page = tid % t_n_sys_in;
+    size_t start_idx   = page_idx * t_n_sys_in * t_sys_size + sys_in_page;
     // buffers use coalesced accessses
     size_t ws_start_idx = tid;
     gpsv_forward_strided(ds + start_idx, dl + start_idx, d + start_idx,
@@ -316,11 +318,11 @@ void gpsv_batched_forward(const Float *ds, const Float *dl, const Float *d,
   constexpr int block_dim_x = 128;
   int nblocks               = 1 + (static_cast<int>(t_n_sys) - 1) / block_dim_x;
   if (t_solvedim == 0) {
-    gpsv_forward_batch_x_kernel<<<block_dim_x, nblocks>>>(
+    gpsv_forward_batch_x_kernel<<<nblocks, block_dim_x>>>(
         ds, dl, d, du, dw, x, dss, dll, duu, dww, comm_buf, snd_bottom_buf,
         t_n_sys, t_dims[t_solvedim]);
   } else if (t_solvedim == t_ndims - 1) {
-    gpsv_forward_batch_outermost_kernel<<<block_dim_x, nblocks>>>(
+    gpsv_forward_batch_outermost_kernel<<<nblocks, block_dim_x>>>(
         ds, dl, d, du, dw, x, dss, dll, duu, dww, comm_buf, snd_bottom_buf,
         t_n_sys, t_dims[t_solvedim]);
   } else {
@@ -328,10 +330,11 @@ void gpsv_batched_forward(const Float *ds, const Float *dl, const Float *d,
         std::accumulate(t_dims, t_dims + t_solvedim, 1, std::multiplies<>());
     size_t n_sys_out = std::accumulate(
         t_dims + t_solvedim + 1, t_dims + t_ndims, 1, std::multiplies<>());
-    gpsv_forward_batch_middle_kernel<<<block_dim_x, nblocks>>>(
+    gpsv_forward_batch_middle_kernel<<<nblocks, block_dim_x>>>(
         ds, dl, d, du, dw, x, dss, dll, duu, dww, comm_buf, snd_bottom_buf,
         n_sys_in, n_sys_out, t_dims[t_solvedim]);
   }
+  CHECK_CUDA(cudaPeekAtLastError()); // NOLINT
 }
 // ----------------------------------------------------------------------------
 // Backward
@@ -346,8 +349,8 @@ __device__ void gpsv_backward_x(const Float *dss, const Float *dll,
   x[1] = x1;
   // last two rows:
   {
-    int i = t_sys_size - 1;
-    x[i]  = x[i] - dww[i * t_stride_ws] * xp2 - duu[i * t_stride_ws] * xp1 -
+    size_t i = t_sys_size - 1;
+    x[i]     = x[i] - dww[i * t_stride_ws] * xp2 - duu[i * t_stride_ws] * xp1 -
            dll[i * t_stride_ws] * x1 - dss[i * t_stride_ws] * x0;
     i    = t_sys_size - 2;
     x[i] = x[i] - dww[i * t_stride_ws] * xp2 - duu[i * t_stride_ws] * xp1 -
@@ -356,7 +359,7 @@ __device__ void gpsv_backward_x(const Float *dss, const Float *dll,
     xp2 = x[i + 1];
   }
 
-  for (int i = t_sys_size - 3; i > 1; --i) {
+  for (size_t i = t_sys_size - 3; i > 1; --i) {
     x[i] = x[i] - dww[i * t_stride_ws] * xp2 - duu[i * t_stride_ws] * xp1 -
            dll[i * t_stride_ws] * x1 - dss[i * t_stride_ws] * x0;
     xp2 = xp1;
@@ -370,11 +373,11 @@ __device__ void gpsv_backward_strided(const Float *dss, const Float *dll,
                                       Float *x, Float x0, Float x1, Float xp1,
                                       Float xp2, int t_stride, int t_stride_ws,
                                       int t_sys_size) {
-  x[0]            = x0;
-  x[1 * t_stride] = x1;
+  x[0]        = x0;
+  x[t_stride] = x1;
   // last two rows:
   {
-    int i           = t_sys_size - 1;
+    size_t i        = t_sys_size - 1;
     x[i * t_stride] = x[i * t_stride] - dww[i * t_stride_ws] * xp2 -
                       duu[i * t_stride_ws] * xp1 - dll[i * t_stride_ws] * x1 -
                       dss[i * t_stride_ws] * x0;
@@ -386,7 +389,7 @@ __device__ void gpsv_backward_strided(const Float *dss, const Float *dll,
     xp2 = x[(i + 1) * t_stride];
   }
 
-  for (int i = t_sys_size - 3; i > 1; --i) {
+  for (size_t i = t_sys_size - 3; i > 1; --i) {
     x[i * t_stride] = x[i * t_stride] - dww[i * t_stride_ws] * xp2 -
                       duu[i * t_stride_ws] * xp1 - dll[i * t_stride_ws] * x1 -
                       dss[i * t_stride_ws] * x0;
@@ -440,11 +443,11 @@ gpsv_backward_batch_middle(const Float *dss, const Float *dll, const Float *duu,
   size_t tid  = cooperative_groups::this_grid().thread_rank();
   int t_n_sys = t_n_sys_in * t_n_sys_out;
   if (tid < t_n_sys) {
-    int page_idx     = tid / t_n_sys_in;
-    int sys_in_page  = tid % t_n_sys_in;
-    size_t sys_start = page_idx * t_n_sys_in * t_sys_size + sys_in_page;
-    size_t ws0       = tid;
-    size_t ws1       = tid + t_stride_ws;
+    size_t page_idx    = tid / t_n_sys_in;
+    size_t sys_in_page = tid % t_n_sys_in;
+    size_t sys_start   = page_idx * t_n_sys_in * t_sys_size + sys_in_page;
+    size_t ws0         = tid;
+    size_t ws1         = tid + t_stride_ws;
     gpsv_backward_strided(dss + ws0, dll + ws0, duu + ws0, dww + ws0,
                           x + sys_start, x_top[ws0], x_top[ws1], xp1[ws0],
                           xp1[ws1], t_n_sys_in, t_n_sys, t_sys_size);
@@ -459,21 +462,23 @@ void gpsv_batched_backward(const Float *dss, const Float *dll, const Float *duu,
   constexpr int block_dim_x = 128;
   int nblocks               = 1 + (static_cast<int>(t_n_sys) - 1) / block_dim_x;
   if (t_solvedim == 0) {
-    gpsv_backward_batch_x<<<block_dim_x, nblocks>>>(
+    gpsv_backward_batch_x<<<nblocks, block_dim_x>>>(
         dss, dll, duu, dww, x, x_top, xp1, t_n_sys, t_n_sys,
         t_dims[t_solvedim]);
   } else if (t_solvedim == t_ndims - 1) {
-    gpsv_backward_batch_outermost<<<block_dim_x, nblocks>>>(
+    gpsv_backward_batch_outermost<<<nblocks, block_dim_x>>>(
         dss, dll, duu, dww, x, x_top, xp1, t_n_sys, t_dims[t_solvedim]);
   } else {
     size_t n_sys_in =
         std::accumulate(t_dims, t_dims + t_solvedim, 1, std::multiplies<>());
     size_t n_sys_out = std::accumulate(
         t_dims + t_solvedim + 1, t_dims + t_ndims, 1, std::multiplies<>());
-    gpsv_backward_batch_middle<<<block_dim_x, nblocks>>>(
-        dss, dll, duu, dww, x, x_top, xp1, n_sys_in, n_sys_out, t_n_sys,
+    size_t stride_ws = t_n_sys;
+    gpsv_backward_batch_middle<<<nblocks, block_dim_x>>>(
+        dss, dll, duu, dww, x, x_top, xp1, n_sys_in, n_sys_out, stride_ws,
         t_dims[t_solvedim]);
   }
+  CHECK_CUDA(cudaPeekAtLastError()); // NOLINT
 }
 
 // ----------------------------------------------------------------------------
@@ -606,16 +611,16 @@ __global__ void eliminate_bottom_row_kernel(int rank, int t_n_sys,
   if (tid < t_n_sys) {
     // buffers use coalesced accessses
     size_t start_idx  = tid;
-    Float *tds        = top_rows + t_n_sys * 0 + start_idx;
-    Float *tdl        = top_rows + t_n_sys * 2 + start_idx;
-    Float *tdu        = top_rows + t_n_sys * 4 + start_idx;
-    Float *tdw        = top_rows + t_n_sys * 6 + start_idx;
-    Float *tx         = top_rows + t_n_sys * 8 + start_idx;
-    const Float *rmds = rmi + t_n_sys * 0 + start_idx;
-    const Float *rmdl = rmi + t_n_sys * 2 + start_idx;
-    const Float *rmdu = rmi + t_n_sys * 4 + start_idx;
-    const Float *rmdw = rmi + t_n_sys * 6 + start_idx;
-    const Float *rmx  = rmi + t_n_sys * 8 + start_idx;
+    Float *tds        = top_rows + t_n_sys * 2 * 0 + start_idx;
+    Float *tdl        = top_rows + t_n_sys * 2 * 1 + start_idx;
+    Float *tdu        = top_rows + t_n_sys * 2 * 2 + start_idx;
+    Float *tdw        = top_rows + t_n_sys * 2 * 3 + start_idx;
+    Float *tx         = top_rows + t_n_sys * 2 * 4 + start_idx;
+    const Float *rmds = rmi + t_n_sys * 2 * 0 + start_idx;
+    const Float *rmdl = rmi + t_n_sys * 2 * 1 + start_idx;
+    const Float *rmdu = rmi + t_n_sys * 2 * 2 + start_idx;
+    const Float *rmdw = rmi + t_n_sys * 2 * 3 + start_idx;
+    const Float *rmx  = rmi + t_n_sys * 2 * 4 + start_idx;
 
     shift_sl_reduced(rmds, rmdl, rmdu, rmdw, rmx, tds, tdl, tdu, tdw, tx,
                      t_n_sys, rank);
@@ -628,7 +633,7 @@ void eliminate_bottom_rows_from_reduced(pentadsolver_handle_t params,
                                         const Float *snd_bottom_buf_d,
                                         Float *snd_bottom_buf_h,
                                         Float *rcvbuf_d, Float *rcvbuf_h,
-                                        Float *top_buf_d, Float *top_buf_h) {
+                                        Float *top_buf_d) {
   int rank                   = params->mpi_coords[t_solvedim];
   constexpr int nvar_per_sys = 10;
   send_rows_to_nodes<communication_dir_t::DOWN, Float>(
@@ -643,8 +648,9 @@ void eliminate_bottom_rows_from_reduced(pentadsolver_handle_t params,
   constexpr int block_dim_x = 128;
   int nblocks               = 1 + (static_cast<int>(t_n_sys) - 1) / block_dim_x;
 
-  eliminate_bottom_row_kernel<<<block_dim_x, nblocks>>>(rank, t_n_sys, rcvbuf_d,
+  eliminate_bottom_row_kernel<<<nblocks, block_dim_x>>>(rank, t_n_sys, rcvbuf_d,
                                                         top_buf_d);
+  CHECK_CUDA(cudaPeekAtLastError()); // NOLINT
 }
 
 template <typename Float>
@@ -668,10 +674,10 @@ __device__ void pcr_iteration(
   constexpr size_t w            = 3;
   constexpr size_t x            = 4;
 
-  Float rm2[nvar_per_row] = {};
-  Float rm1[nvar_per_row] = {};
-  Float rp1[nvar_per_row] = {};
-  Float rp2[nvar_per_row] = {};
+  Float rm2[nvar_per_row] = {}; // NOLINT
+  Float rm1[nvar_per_row] = {}; // NOLINT
+  Float rp1[nvar_per_row] = {}; // NOLINT
+  Float rp2[nvar_per_row] = {}; // NOLINT
   if (leftrank >= 0) {
     rm2[0] = rmds[0];
     rm1[0] = rmds[t_stride];
@@ -696,7 +702,8 @@ __device__ void pcr_iteration(
     rp1[4] = rpx[0];
     rp2[4] = rpx[t_stride];
   }
-  Float r0[nvar_per_row] = {dss[0], dll[0], duu[0], dww[0], xx[0]};
+  Float r0[nvar_per_row] = {dss[0], dll[0], duu[0], dww[0], xx[0]}; // NOLINT
+  // NOLINTNEXTLINE
   Float r1[nvar_per_row] = {dss[t_stride], dll[t_stride], duu[t_stride],
                             dww[t_stride], xx[t_stride]};
 
@@ -748,21 +755,21 @@ __global__ void pcr_iteration_kernel(int leftrank, int rightrank, int nproc,
   if (tid < t_n_sys) {
     // buffers use coalesced accessses
     size_t start_idx  = tid;
-    Float *tds        = ri + t_n_sys * 0 + start_idx;
-    Float *tdl        = ri + t_n_sys * 2 + start_idx;
-    Float *tdu        = ri + t_n_sys * 4 + start_idx;
-    Float *tdw        = ri + t_n_sys * 6 + start_idx;
-    Float *tx         = ri + t_n_sys * 8 + start_idx;
-    const Float *rmds = rmi + t_n_sys * 0 + start_idx;
-    const Float *rmdl = rmi + t_n_sys * 2 + start_idx;
-    const Float *rmdu = rmi + t_n_sys * 4 + start_idx;
-    const Float *rmdw = rmi + t_n_sys * 6 + start_idx;
-    const Float *rmx  = rmi + t_n_sys * 8 + start_idx;
-    const Float *rpds = rpi + t_n_sys * 0 + start_idx;
-    const Float *rpdl = rpi + t_n_sys * 2 + start_idx;
-    const Float *rpdu = rpi + t_n_sys * 4 + start_idx;
-    const Float *rpdw = rpi + t_n_sys * 6 + start_idx;
-    const Float *rpx  = rpi + t_n_sys * 8 + start_idx;
+    Float *tds        = ri + t_n_sys * 2 * 0 + start_idx;
+    Float *tdl        = ri + t_n_sys * 2 * 1 + start_idx;
+    Float *tdu        = ri + t_n_sys * 2 * 2 + start_idx;
+    Float *tdw        = ri + t_n_sys * 2 * 3 + start_idx;
+    Float *tx         = ri + t_n_sys * 2 * 4 + start_idx;
+    const Float *rmds = rmi + t_n_sys * 2 * 0 + start_idx;
+    const Float *rmdl = rmi + t_n_sys * 2 * 1 + start_idx;
+    const Float *rmdu = rmi + t_n_sys * 2 * 2 + start_idx;
+    const Float *rmdw = rmi + t_n_sys * 2 * 3 + start_idx;
+    const Float *rmx  = rmi + t_n_sys * 2 * 4 + start_idx;
+    const Float *rpds = rpi + t_n_sys * 2 * 0 + start_idx;
+    const Float *rpdl = rpi + t_n_sys * 2 * 1 + start_idx;
+    const Float *rpdu = rpi + t_n_sys * 2 * 2 + start_idx;
+    const Float *rpdw = rpi + t_n_sys * 2 * 3 + start_idx;
+    const Float *rpx  = rpi + t_n_sys * 2 * 4 + start_idx;
     pcr_iteration(rmds, rmdl, rmdu, rmdw, rmx, tds, tdl, tdu, tdw, tx, rpds,
                   rpdl, rpdu, rpdw, rpx, t_n_sys, leftrank, rightrank, nproc);
   }
@@ -790,8 +797,7 @@ inline void solve_reduced_pcr(pentadsolver_handle_t params, Float *rcvbuf_d,
 
   // eliminate 2 rows from reduced system
   eliminate_bottom_rows_from_reduced(params, t_solvedim, t_n_sys, rcvbufL_d,
-                                     rcvbufL_h, rcvbufR_d, rcvbufR_h, sndbuf_d,
-                                     sndbuf_h);
+                                     rcvbufL_h, rcvbufR_d, rcvbufR_h, sndbuf_d);
 
   int P    = std::ceil(std::log2((double)nproc));
   int dist = 1;
@@ -805,8 +811,9 @@ inline void solve_reduced_pcr(pentadsolver_handle_t params, Float *rcvbuf_d,
     int rightrank = rank + dist;
 
     // PCR algorithm
-    pcr_iteration_kernel<<<block_dim_x, nblocks>>>(
+    pcr_iteration_kernel<<<nblocks, block_dim_x>>>(
         leftrank, rightrank, nproc, t_n_sys, rcvbufR_d, rcvbufL_d, sndbuf_d);
+    CHECK_CUDA(cudaPeekAtLastError()); // NOLINT
 
     // done
     dist = dist << 1; // NOLINT
@@ -850,15 +857,15 @@ __global__ void jacobi_iteration_kernel(int leftrank, int rightrank, int nproc,
   if (tid < t_n_sys) {
     // buffers use coalesced accessses
     size_t start_idx = tid;
-    const Float *tds = ri + t_n_sys * 0 + start_idx;
-    const Float *tdl = ri + t_n_sys * 2 + start_idx;
-    const Float *tdu = ri + t_n_sys * 4 + start_idx;
-    const Float *tdw = ri + t_n_sys * 6 + start_idx;
-    const Float *tx  = ri + t_n_sys * 8 + start_idx;
+    const Float *tds = ri + t_n_sys * 2 * 0 + start_idx;
+    const Float *tdl = ri + t_n_sys * 2 * 1 + start_idx;
+    const Float *tdu = ri + t_n_sys * 2 * 2 + start_idx;
+    const Float *tdw = ri + t_n_sys * 2 * 3 + start_idx;
+    const Float *tx  = ri + t_n_sys * 2 * 4 + start_idx;
     Float *x         = x_cur + start_idx;
     const Float *rmx = rmi + start_idx;
     const Float *rpx = rpi + start_idx;
-    jacobi_iteration(rmx, tds, tdl, tdu, tdw, tx, x_cur, rpx, t_n_sys, leftrank,
+    jacobi_iteration(rmx, tds, tdl, tdu, tdw, tx, x, rpx, t_n_sys, leftrank,
                      rightrank, nproc);
   }
 }
@@ -880,8 +887,7 @@ inline void solve_reduced_jacobi(pentadsolver_handle_t params, Float *rcvbuf_d,
 
   // eliminate 2 rows from reduced system
   eliminate_bottom_rows_from_reduced(params, t_solvedim, t_n_sys, rcvbufL_d,
-                                     rcvbufL_h, rcvbufR_d, rcvbufR_h, sndbuf_d,
-                                     sndbuf_h);
+                                     rcvbufL_h, rcvbufR_d, rcvbufR_h, sndbuf_d);
   Float *x_cur_h  = rcvbuf_h;
   Float *x_prev_h = x_cur_h + 2 * t_n_sys;
   rcvbufL_h       = x_prev_h + 2 * t_n_sys;
@@ -892,7 +898,7 @@ inline void solve_reduced_jacobi(pentadsolver_handle_t params, Float *rcvbuf_d,
   rcvbufR_d       = rcvbufL_d + 2 * t_n_sys;
 
   int iter                     = 0;
-  constexpr int max_iter       = 100;   // TODO move to params
+  constexpr int max_iter       = 10;    // TODO move to params
   constexpr double jacobi_atol = 1e-12; // TODO move to params
   constexpr double jacobi_rtol = 1e-11; // TODO move to params
   MPI_Request norm_req         = MPI_REQUEST_NULL;
@@ -908,9 +914,10 @@ inline void solve_reduced_jacobi(pentadsolver_handle_t params, Float *rcvbuf_d,
         params, t_solvedim, 1, t_n_sys * nvar_per_sys, sndbuf_d, sndbuf_h,
         rcvbufL_d, rcvbufL_h, rcvbufR_d, rcvbufR_h);
     // kernel
-    jacobi_iteration_kernel<<<block_dim_x, nblocks>>>(
+    jacobi_iteration_kernel<<<nblocks, block_dim_x>>>(
         rank - 1, rank + 1, nproc, t_n_sys, rcvbufR_d, rcvbufL_d, sndbuf_d,
         x_cur_d);
+    CHECK_CUDA(cudaPeekAtLastError()); // NOLINT
 
     // Error norm
     // if (iter > 0) { // skip until the first sum is ready
@@ -930,7 +937,8 @@ inline void solve_reduced_jacobi(pentadsolver_handle_t params, Float *rcvbuf_d,
     // }
   } while (++iter < max_iter && need_iter);
 
-  cudaMemcpy(sndbuf_d + t_n_sys * 2 * 4, x_cur_d, t_n_sys * 2 * sizeof(Float),
+  cudaMemcpy(sndbuf_d + t_n_sys * 2 * 4, x_cur_d,
+             static_cast<size_t>(t_n_sys) * 2 * sizeof(Float),
              cudaMemcpyDeviceToDevice);
 
   rcvbufR_h = rcvbuf_h + t_n_sys * nvar_per_sys;
@@ -951,6 +959,10 @@ void pentadsolver_gpsv_batch(pentadsolver_handle_t params, const Float *ds,
                              const Float *dw, Float *x, const int *t_dims,
                              size_t t_ndims, int t_solvedim, void *t_buffer_h,
                              void *t_buffer_d) {
+  // profiling code
+  using clock      = std::chrono::high_resolution_clock;
+  using time_point = clock::time_point;
+  auto t0          = clock::now();
 
   size_t buff_size =
       std::accumulate(t_dims, t_dims + t_ndims, 1, std::multiplies<>());
@@ -964,15 +976,34 @@ void pentadsolver_gpsv_batch(pentadsolver_handle_t params, const Float *ds,
   Float *rcvbuf_d                 = sndbuf_d + n_sys * reduced_size_elem;
   auto *sndbuf_h                  = reinterpret_cast<Float *>(t_buffer_h);
   Float *rcvbuf_h                 = sndbuf_h + n_sys * reduced_size_elem;
+  auto t1                         = clock::now();
   gpsv_batched_forward(ds, dl, d, du, dw, x, dss, dll, duu, dww, sndbuf_d,
                        rcvbuf_d, t_dims, t_ndims, n_sys, t_solvedim);
+  CHECK_CUDA(cudaDeviceSynchronize()); // NOLINT
+  auto t2 = clock::now();
   solve_reduced_pcr(params, rcvbuf_d, sndbuf_d, rcvbuf_h, sndbuf_h, t_solvedim,
                     n_sys);
   // solve_reduced_jacobi(params, rcvbuf_d, sndbuf_d, rcvbuf_h, sndbuf_h,
   //                      t_solvedim, n_sys);
-  gpsv_batched_backward(dss, dll, duu, dww, x, sndbuf_d + 2 * 4 * n_sys,
+  CHECK_CUDA(cudaDeviceSynchronize()); // NOLINT
+  auto t3 = clock::now();
+  gpsv_batched_backward(dss, dll, duu, dww, x, sndbuf_d + n_sys * 2 * 4,
                         rcvbuf_d + reduced_size_elem * n_sys, t_dims, t_ndims,
                         n_sys, t_solvedim);
+  CHECK_CUDA(cudaDeviceSynchronize()); // NOLINT
+  auto t4 = clock::now();
+  params->total_sec +=
+      std::chrono::duration_cast<std::chrono::duration<double>>(t4 - t0)
+          .count();
+  params->forward_sec +=
+      std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1)
+          .count();
+  params->reduced_sec +=
+      std::chrono::duration_cast<std::chrono::duration<double>>(t3 - t2)
+          .count();
+  params->backward_sec +=
+      std::chrono::duration_cast<std::chrono::duration<double>>(t4 - t3)
+          .count();
 }
 
 // ----------------------------------------------------------------------------
