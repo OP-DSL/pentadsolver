@@ -2,6 +2,7 @@
 #define PENTADSOLVER_DEVICE_MESH_HPP_INCLUDED
 
 #include "mesh.hpp"
+#include "hip/hip_runtime.h"
 
 template <typename Float> class DeviceMesh : public Mesh<Float> {
   Float *_ds_d = nullptr;
@@ -28,9 +29,9 @@ template <typename Float>
 DeviceMesh<Float>::DeviceMesh(const std::filesystem::path &file_name)
     : Mesh<Float>::Mesh(file_name) {
   auto init_arr = [](Float **arr_d, const std::vector<Float> &arr_h) {
-    cudaMalloc((void **)arr_d, sizeof(Float) * arr_h.size());
-    cudaMemcpy(*arr_d, arr_h.data(), sizeof(Float) * arr_h.size(),
-               cudaMemcpyHostToDevice);
+    hipMalloc((void **)arr_d, sizeof(Float) * arr_h.size());
+    hipMemcpy(*arr_d, arr_h.data(), sizeof(Float) * arr_h.size(),
+               hipMemcpyHostToDevice);
   };
   init_arr(&_ds_d, this->_ds);
   init_arr(&_dl_d, this->_dl);
@@ -44,9 +45,9 @@ template <typename Float>
 DeviceMesh<Float>::DeviceMesh(size_t solve_dim, std::vector<int> dims)
     : Mesh<Float>::Mesh(solve_dim, dims) {
   auto init_arr = [](Float **arr_d, const std::vector<Float> &arr_h) {
-    cudaMalloc((void **)arr_d, sizeof(Float) * arr_h.size());
-    cudaMemcpy(*arr_d, arr_h.data(), sizeof(Float) * arr_h.size(),
-               cudaMemcpyHostToDevice);
+    hipMalloc((void **)arr_d, sizeof(Float) * arr_h.size());
+    hipMemcpy(*arr_d, arr_h.data(), sizeof(Float) * arr_h.size(),
+               hipMemcpyHostToDevice);
   };
   init_arr(&_ds_d, this->_ds);
   init_arr(&_dl_d, this->_dl);

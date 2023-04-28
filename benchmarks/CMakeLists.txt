@@ -20,11 +20,13 @@ if(BUILD_BENCHMARKS)
     endif(BUILD_FOR_CPU)
 
     if(BUILD_FOR_CUDA)
-      add_executable(cuda_perf_mpi performance_test.cu)
-      target_link_cuda(cuda_perf_mpi)
+	    find_package(hip)
+      add_executable(cuda_perf_mpi performance_test_device.cpp)
+      #target_link_cuda(cuda_perf_mpi)
       target_link_libraries(
         cuda_perf_mpi
         PRIVATE OpenMP::OpenMP_CXX
+	        hip::device
                 pentadsolver::project_warnings
                 pentadsolver::project_options
                 pentadsolver::mpi_cuda)

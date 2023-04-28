@@ -1,13 +1,14 @@
-add_executable(cuda_tests singlenode/cuda_tests.cu)
+add_executable(cuda_tests singlenode/cuda_tests.cpp)
 target_link_libraries(
   cuda_tests
   PRIVATE pentadsolver::project_warnings
+          hip::device
           pentadsolver::project_options
           pentadsolver::cuda
           catch_main)
 
 target_include_directories(cuda_tests PUBLIC ${PROJECT_SOURCE_DIR})
-target_link_cuda(cuda_tests)
+#target_link_cuda(cuda_tests)
 
 # automatically discover tests that are defined in catch based test files you can modify the unittests. Set TEST_PREFIX
 # to whatever you want, or use different for different binaries
@@ -27,7 +28,7 @@ catch_discover_tests(
 if(BUILD_FOR_MPI)
   find_package(MPI REQUIRED)
 
-  add_executable(cuda_mpi_tests mpi/mpi_main.cpp mpi/cuda_tests.cu)
+  add_executable(cuda_mpi_tests mpi/mpi_main.cpp mpi/cuda_tests.cpp)
   target_link_libraries(
     cuda_mpi_tests
     PRIVATE pentadsolver::project_warnings

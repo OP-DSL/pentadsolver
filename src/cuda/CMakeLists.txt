@@ -1,10 +1,12 @@
-add_library(cuda ./singlenode/pentad_cuda.cu)
+add_library(cuda ./singlenode/pentad_hip.cpp)
 add_library(${PROJECT_NAME}::cuda ALIAS cuda)
 
-target_link_libraries(cuda PRIVATE OpenMP::OpenMP_CXX ${PROJECT_NAME}::project_options
+			   #target_link_cuda(cuda)
+set(GPU_TARGETS "gfx90a" CACHE STRING "GPU targets to compile for")
+find_package(hip)			   
+target_link_libraries(cuda PRIVATE OpenMP::OpenMP_CXX hip::device ${PROJECT_NAME}::project_options
                                    ${PROJECT_NAME}::project_warnings)
-target_link_cuda(cuda)
-
+#target_link_libraries(cuda hip::device)
 # TODO CUDA_ARCH??
 
 target_include_directories(cuda PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
@@ -29,7 +31,7 @@ if(BUILD_FOR_MPI)
   target_include_directories(cuda_mpi_handle PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
                                                     $<INSTALL_INTERFACE:${PROJECT_NAME}/include>)
 
-  add_library(mpi_cuda ./mpi/pentad_cuda.cu)
+  add_library(mpi_cuda ./mpi/pentad_hip.cpp)
   add_library(${PROJECT_NAME}::mpi_cuda ALIAS mpi_cuda)
 
   target_link_libraries(
