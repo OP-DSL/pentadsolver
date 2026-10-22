@@ -1,8 +1,7 @@
-#include <mpi.h>   // for MPI_Request, MPI_REQUEST_NULL
-#include <cstddef> // for size_t
-#include <array>   // for array
-#include <cassert> // for assert
-#include <chrono>
+#include <mpi.h>                   // for MPI_Request, MPI_REQUEST_NULL
+#include <cstddef>                 // for size_t
+#include <array>                   // for array
+#include <cassert>                 // for assert
 #include <cmath>                   // for ceil, log2
 #include <functional>              // for multiplies
 #include <numeric>                 // for accumulate
@@ -59,7 +58,7 @@ void pack_first_rows_forward(Float ds0, std::array<Float, full_line_l> &r0,
   r1[w] = r1[w] / r1[d];
   r1[x] = r1[x] / r1[d];
   // r0 - tmp * r1
-  //  note: we add ds to the beginning of the array so indexing will change
+  //  note: ds is added to the beginning of the array so indexing will change
   Float u0_tmp         = r0[d];
   r0[d]                = r0[l] - u0_tmp * r1[l]; // ddi
   sndbuf[2 * s]        = ds0 / r0[d];
@@ -111,8 +110,8 @@ void gpsv_forward_x(const Float *ds, const Float *dl, const Float *d,
   assert(t_sys_size >= 4); // NOLINT
   // row 0:
   // M[0, 1] cannot be shifted until the end
-  // So we add a temp value to the line and shift it like row 1 until the end
-  // Finally we will shift du as well and add back ds[0]
+  // So a temp value is added to the line and shifted like row 1 until the end
+  // Finally du is shifted as well and ds[0] added back
   std::array<Float, full_line_l> r0 = {dl[0], d[0], du[0], dw[0], 0, x[0]};
   // row 1
   std::array<Float, full_line_l> r1 = {ds[1], dl[1], d[1], du[1], dw[1], x[1]};
@@ -191,8 +190,8 @@ void gpsv_forward_strided(const Float *ds, const Float *dl, const Float *d,
   assert(t_sys_size >= 4); // NOLINT
   // row 0:
   // M[0, 1] cannot be shifted until the end
-  // So we add a temp value to the line and shift it like row 1 until the end
-  // Finally we will shift du as well and add back ds[0]
+  // So a temp value is added to the line and shifted like row 1 until the end
+  // Finally du is shifted as well and ds[0] added back
   std::array<Float, full_line_l> r0 = {dl[0], d[0], du[0], dw[0], 0, x[0]};
   // row 1
   std::array<Float, full_line_l> r1 = {ds[t_stride], dl[t_stride], d[t_stride],
@@ -706,7 +705,7 @@ inline void solve_reduced_jacobi(pentadsolver_handle_t params, Float *rcvbuf,
   }
 
   int iter                     = 0;
-  constexpr int max_iter       = 10;   // TODO move to params
+  constexpr int max_iter       = 100;   // TODO move to params
   constexpr double jacobi_atol = 1e-12; // TODO move to params
   constexpr double jacobi_rtol = 1e-11; // TODO move to params
   MPI_Request norm_req         = MPI_REQUEST_NULL;
@@ -837,10 +836,6 @@ void pentadsolver_gpsv_batch(pentadsolver_handle_t handle, const Float *ds,
                              const Float *dl, const Float *d, const Float *du,
                              const Float *dw, Float *x, const int *t_dims,
                              size_t t_ndims, int t_solvedim, void *t_buffer) {
-  // profiling code
-  using clock      = std::chrono::high_resolution_clock;
-  using time_point = clock::time_point;
-  auto t0          = clock::now();
   size_t buff_size =
       std::accumulate(t_dims, t_dims + t_ndims, 1, std::multiplies<>());
   size_t n_sys = buff_size / t_dims[t_solvedim];
@@ -851,29 +846,13 @@ void pentadsolver_gpsv_batch(pentadsolver_handle_t handle, const Float *ds,
   constexpr int reduced_size_elem = 10; // 2 row per node 5 value per row
   Float *sndbuf                   = dww + buff_size;
   Float *rcvbuf                   = sndbuf + n_sys * reduced_size_elem;
-  auto t1                         = clock::now();
   gpsv_batched_forward(ds, dl, d, du, dw, x, dss, dll, duu, dww, sndbuf, rcvbuf,
                        t_dims, t_ndims, n_sys, t_solvedim);
-  auto t2 = clock::now();
   // solve_reduced_pcr(handle, rcvbuf, sndbuf, t_solvedim, n_sys);
   solve_reduced_jacobi(handle, rcvbuf, sndbuf, t_solvedim, n_sys);
-  auto t3 = clock::now();
   gpsv_backward_batched(dss, dll, duu, dww, x, sndbuf,
                         rcvbuf + reduced_size_elem * n_sys, t_dims, t_ndims,
                         n_sys, t_solvedim);
-  auto t4 = clock::now();
-  handle->total_sec +=
-      std::chrono::duration_cast<std::chrono::duration<double>>(t4 - t0)
-          .count();
-  handle->forward_sec +=
-      std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1)
-          .count();
-  handle->reduced_sec +=
-      std::chrono::duration_cast<std::chrono::duration<double>>(t3 - t2)
-          .count();
-  handle->backward_sec +=
-      std::chrono::duration_cast<std::chrono::duration<double>>(t4 - t3)
-          .count();
 }
 
 // ----------------------------------------------------------------------------

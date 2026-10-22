@@ -85,7 +85,7 @@ Mesh<Float>::Mesh(size_t solve_dim, std::vector<int> dims)
       _dims(std::move(dims)), _ds{}, _dl{}, _d{}, _du{}, _dw{}, _x{}, _u{} {
   assert(_solve_dim < _dims.size() && "solve dim greater than number of dims");
   size_t num_elements =
-      std::accumulate(_dims.begin(), _dims.end(), 1, std::multiplies());
+      std::accumulate(_dims.begin(), _dims.end(), 1, std::multiplies<>());
   _ds.resize(num_elements);
   _dl.resize(num_elements);
   _d.resize(num_elements);
