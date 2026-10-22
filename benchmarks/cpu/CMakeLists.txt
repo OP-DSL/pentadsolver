@@ -1,4 +1,7 @@
+
 add_executable(my_bm my_bm.cpp)
+
+
 target_link_libraries(
   my_bm
   PRIVATE OpenMP::OpenMP_CXX 
@@ -6,3 +9,9 @@ target_link_libraries(
           pentadsolver::project_options
           pentadsolver::cpu
           benchmark::benchmark)
+if(USE_PROFILING)
+  target_link_libraries(
+  my_bm PRIVATE profiling)
+endif(USE_PROFILING)
+
+

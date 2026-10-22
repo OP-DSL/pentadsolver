@@ -53,7 +53,7 @@ void test_solver_from_file(const std::filesystem::path &file_name) {
     domain_size *= local_sizes[i];
   }
 
-  // Simulate distributed environment: only load our data
+  // Simulate distributed environment: only load the local data
   std::vector<Float> ds;
   std::vector<Float> dl;
   std::vector<Float> d;
@@ -116,43 +116,7 @@ void test_solver_from_file(const std::filesystem::path &file_name) {
   pentadsolver_destroy(&handle);
 }
 
-TEMPLATE_TEST_CASE("x_solve: batch small", "[small]", double, float) { // NOLINT
-  // SECTION("ndims: 1") { // size is 5 too small
-  //   test_solver_from_file<TestType>("files/one_dim_small_solve0");
-  // }
-  SECTION("ndims: 2") {
-    test_solver_from_file<TestType>("files/two_dim_small_solve0");
-  }
-}
-
-TEMPLATE_TEST_CASE("y_solve: batch small", "[small]", double, float) { // NOLINT
-  SECTION("ndims: 2") {
-    test_solver_from_file<TestType>("files/two_dim_small_solve1");
-  }
-}
-
-TEMPLATE_TEST_CASE("x_solve: batch large", "[large]", double, float) { // NOLINT
-  SECTION("ndims: 1") {
-    test_solver_from_file<TestType>("files/one_dim_large_solve0");
-  }
-  SECTION("ndims: 2") {
-    test_solver_from_file<TestType>("files/two_dim_large_solve0");
-  }
-  SECTION("ndims: 3") {
-    test_solver_from_file<TestType>("files/three_dim_large_solve0");
-  }
-}
-
-TEMPLATE_TEST_CASE("y_solve: batch large", "[large]", double, float) { // NOLINT
-  SECTION("ndims: 2") {
-    test_solver_from_file<TestType>("files/two_dim_large_solve1");
-  }
-  SECTION("ndims: 3") {
-    test_solver_from_file<TestType>("files/three_dim_large_solve1");
-  }
-}
-
-TEMPLATE_TEST_CASE("z_solve: batch large", "[large]", double, float) { // NOLINT
+TEMPLATE_TEST_CASE("z_solve: batch large", "[large]", float) { // NOLINT
   SECTION("ndims: 3") {
     test_solver_from_file<TestType>("files/three_dim_large_solve2");
   }

@@ -20,12 +20,22 @@ if(PROJECT_IS_TOP_LEVEL OR TEST_INSTALLED_VERSION)
   endif()
 endif()
 
-# ---- Dependencies ----
-
-find_package(Catch2 CONFIG REQUIRED)
-
+# ---- Dependencies: Catch2 (v2) ----
+# Use an installed Catch2 v2 if present; otherwise fetch it from source at
+# configure time (needs internet on the configuring machine, see README).
+# This replaces a previously hard-coded personal install path that only worked
+# on the original author's account.
+find_package(Catch2 2 QUIET)
+if(NOT Catch2_FOUND)
+  message(STATUS "Catch2 not found locally; fetching v2.13.10 from GitHub.")
+  include(FetchContent)
+  FetchContent_Declare(
+    Catch2
+    URL https://github.com/catchorg/Catch2/archive/refs/tags/v2.13.10.tar.gz)
+  FetchContent_MakeAvailable(Catch2)
+  list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/contrib)
+endif()
 include(Catch)
-
 add_library(catch_main OBJECT catch_main.cpp)
 target_link_libraries(catch_main PUBLIC Catch2::Catch2)
 target_link_libraries(catch_main PRIVATE pentadsolver::project_options)
