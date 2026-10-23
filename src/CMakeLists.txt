@@ -1,7 +1,9 @@
 option(BUILD_FOR_CPU "Build library for CPU architecture." ON)
 option(BUILD_FOR_CUDA "Build library for CUDA architecture." OFF)
+option(BUILD_FOR_SP "Build library for SP." ON)
 option(BUILD_FOR_MPI "Build distributer library." OFF)
-
+option(BUILD_FOR_SN  "Build library for a single node combnied with the above architectures." OFF)
+option(USE_PROFILING "Build timing library for to measure timings." OFF)
 if(BUILD_FOR_CPU)
   add_subdirectory(cpu)
 endif(BUILD_FOR_CPU)

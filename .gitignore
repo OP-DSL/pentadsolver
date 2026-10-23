@@ -1,41 +1,55 @@
-# Build directories and binary files
+# Build directories (all presets) and CMake user files
 build/
+build-*/
 out/
 cmake-build-*/
 conan-cache/
-
-# User spesific settings
 CMakeUserPresets.json
 
-# Prerequisites
-*.d
+# Everything the measurement scripts write
+results/
+pentadsolver_*.tar.gz
 
-# Compiled Object files
+# Working notes and analysis write-ups: local only, never published
+docs/
+
+# Third-party tools fetched by scripts/get_ert.sh
+third_party/
+
+# Prerequisites / objects / libs / executables
+*.d
 *.slo
 *.lo
 *.o
 *.obj
-
-# Precompiled Headers
 *.gch
 *.pch
-
-# Compiled Dynamic libraries
 *.so
 *.dylib
 *.dll
-
-# Fortran module files
 *.mod
 *.smod
-
-# Compiled Static libraries
 *.lai
 *.la
 *.a
 *.lib
-
-# Executables
 *.exe
 *.out
 *.app
+
+# Editor / OS cruft
+.vscode/
+.idea/
+.DS_Store
+__MACOSX/
+*.swp
+
+# Stale Catch2 xml test output
+.OUTPUT_PREFIX/
+**/.OUTPUT_PREFIX/
+unittests.*.xml
+
+# Local-only data (not part of the PR)
+/files
+test/cpu/singlenode/files/
+results-final/

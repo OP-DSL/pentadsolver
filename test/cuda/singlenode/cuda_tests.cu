@@ -11,6 +11,13 @@ void test_from_file(const std::filesystem::path &file_name) {
   pentadsolver_handle_t handle{};
   pentadsolver_create(&handle, nullptr, 0, nullptr);
 
+  size_t buf_bytes = pentadsolver_gpsv_batch_buffer_size_ext(
+      handle, mesh.ds_d(), mesh.dl_d(), mesh.d_d(), mesh.du_d(), mesh.dw_d(),
+      mesh.x_d(), mesh.dims().data(), static_cast<int>(mesh.dims().size()),
+      mesh.solve_dim());
+  void *t_buf = nullptr;
+  if (buf_bytes > 0) { cudaMalloc(&t_buf, buf_bytes); }
+
   pentadsolver_gpsv_batch(handle,             // context
                           mesh.ds_d(),        // ds
                           mesh.dl_d(),        // dl
@@ -19,12 +26,14 @@ void test_from_file(const std::filesystem::path &file_name) {
                           mesh.dw_d(),        // dw
                           mesh.x_d(),         // x
                           mesh.dims().data(), // t_dims
-                          mesh.dims().size(), // t_dims
+                          mesh.dims().size(), // t_ndim
                           mesh.solve_dim(),   // t_solvedim
-                          nullptr);           // t_buffer
+                          t_buf);             // t_buffer
 
+  cudaDeviceSynchronize();
   cudaMemcpy(mesh.x().data(), mesh.x_d(), mesh.x().size() * sizeof(Float),
              cudaMemcpyDeviceToHost);
+  if (t_buf) { cudaFree(t_buf); }
   require_allclose(mesh.u(), mesh.x());
   pentadsolver_destroy(&handle);
 }

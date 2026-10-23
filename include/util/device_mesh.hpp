@@ -14,6 +14,14 @@ template <typename Float> class DeviceMesh : public Mesh<Float> {
 public:
   explicit DeviceMesh(const std::filesystem::path &file_name);
   DeviceMesh(size_t solve_dim, std::vector<int> _dims);
+  ~DeviceMesh() {
+    cudaFree(_ds_d);
+    cudaFree(_dl_d);
+    cudaFree(_d_d);
+    cudaFree(_du_d);
+    cudaFree(_dw_d);
+    cudaFree(_x_d);
+  }
 
   const Float *ds_d() const { return _ds_d; }
   const Float *dl_d() const { return _dl_d; }

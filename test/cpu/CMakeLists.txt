@@ -1,15 +1,20 @@
+
 add_executable(tests singlenode/tests.cpp)
 target_link_libraries(
   tests
   PRIVATE pentadsolver::project_warnings
           pentadsolver::project_options
           pentadsolver::cpu
-          catch_main)
+          catch_main stdc++fs)
+if(USE_PROFILING)
+  target_link_libraries(
+  tests PRIVATE profiling)
+endif(USE_PROFILING)
 
 target_include_directories(tests PUBLIC ${PROJECT_SOURCE_DIR})
 
-# automatically discover tests that are defined in catch based test files you can modify the unittests. Set TEST_PREFIX
-# to whatever you want, or use different for different binaries
+# automatically discover tests defined in catch based test files, the unittests can be modified. Set TEST_PREFIX
+# as needed, or use a different one per binary
 catch_discover_tests(
   tests
   TEST_PREFIX
